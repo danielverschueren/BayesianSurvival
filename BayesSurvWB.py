@@ -14,11 +14,12 @@ if __name__ == "__main__":
     # load data
     file = "PBMonoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
+    dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)
 
     # plot KM
     fig, ax = plt.subplots()
     color = ['b', 'r']
-    kind = ['RW', 'TR']
+    kind = ['Test', 'Reference']
     plotKaplanMeier(dataDF, color, ax, cols=kind, Ts=[30, 30])
     #plt.show()
 

@@ -13,7 +13,7 @@ def resetDataToT(dataX, T):
     t = data['EndTime'].astype(float).values
     t_start = data['StartTime'].astype(float).values
     t_abs = t_start + t
-    real = data['RW'].astype(int).values
+    real = data['Test'].astype(int).values
 
     # update t for active uncensored subjects
     censoredsAtT = data['Censored'].astype(int).values
@@ -33,7 +33,12 @@ def resetDataToT(dataX, T):
 
     return data, t, censoredsAtT
     
-def loglp(t, beta, nu, dataIdentifiers):
+def loglp(t, 
+          beta, 
+          nu, 
+          test_id,
+          reference_id,
+          censoreds):
     """
     +==========================================================================+
 
@@ -42,21 +47,16 @@ def loglp(t, beta, nu, dataIdentifiers):
     eps = 1e-10
     pll = 0
 
-    # get IDs
-    real = dataIdentifiers[:,1]
-    trial = dataIdentifiers[:,2]
-    censoreds = dataIdentifiers[:,0]
-
     # baseline
     expB = pm.math.exp(beta)
 
     # baseline Hazard exp
     # trial
-    pll = pm.math.sum(trial*(censoreds*(pm.math.log(nu + eps) - nu*t) # true deads               
+    pll = pm.math.sum(reference_id*(censoreds*(pm.math.log(nu + eps) - nu*t) # true deads               
                       - (1-censoreds)*nu*t))  # alive
 
     # real
-    pll += pm.math.sum(real*(censoreds*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
+    pll += pm.math.sum(test_id*(censoreds*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
                       - (1-censoreds)*nu*t*expB)) # alive 
     
     return pll
@@ -74,22 +74,31 @@ def LifeTimesFull_Exp(data,
     with pm.Model() as model:
 
         # get IDs, order matters!
-        dataIdentifiers = np.c_[censoreds, data[['RW', 'TR']].to_numpy()]
+        test_id = pm.Data("test_id", data['Test'].to_numpy())
+        reference_id = pm.Data("reference_id", data['Reference'].to_numpy())
+        censoreds = pm.Data("censoreds_id", censoreds)
 
         # set up priors
         beta = pm.Normal('beta', mu=beta_params[0], sigma=beta_params[1]) #23
         nu = pm.LogNormal('nu', mu=nu_params[0], sigma=nu_params[1])
 
         # parse data
-        t = pm.ConstantData("t", t, dims="obs_id")
+        t = pm.Data("t", t, dims="obs_id")
 
         # set up custom pll
-        pm.DensityDist("likeli", beta, nu, dataIdentifiers, logp=loglp, 
-                       observed=t, dims='obs_id')
+        pm.CustomDist("likeli", beta, nu,
+                      test_id, reference_id, censoreds, logp=loglp, 
+                      observed=t, dims='obs_id')
 
     return model
 
-def loglwb(t, beta, b, k, dataIdentifiers):
+def loglwb(t, 
+           beta, 
+           b, 
+           k, 
+           test_id,
+           reference_id,
+           censoreds):
     """
     +==========================================================================+
 
@@ -98,21 +107,16 @@ def loglwb(t, beta, b, k, dataIdentifiers):
     eps = 1e-10
     pll = 0
 
-    # get IDs
-    real = dataIdentifiers[:,1]
-    trial = dataIdentifiers[:,2]
-    censoreds = dataIdentifiers[:,0]
-
     # baseline
     expB = pm.math.exp(beta)
 
     # baseline Hazard Weibull
     # trial
-    pll = pm.math.sum(trial*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
+    pll = pm.math.sum(reference_id*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
                       - (1-censoreds)*b*t**k))  # censoreds
 
     # real
-    pll += pm.math.sum(real*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
+    pll += pm.math.sum(test_id*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
                       - (1-censoreds)*expB*b*t**k))  # censoreds
     
     return pll
@@ -131,7 +135,9 @@ def LifeTimesFull_WB(data,
     with pm.Model() as model:
 
         # get IDs, order matters!
-        dataIdentifiers = np.c_[censoreds, data[['RW', 'TR']].to_numpy()]
+        test_id = pm.Data("test_id", data['Test'].to_numpy())
+        reference_id = pm.Data("reference_id", data['Reference'].to_numpy())
+        censoreds = pm.Data("censoreds_id", censoreds)
 
         # set up priors
         beta = pm.Normal('beta', mu=beta_params[0], sigma=beta_params[1]) #23
@@ -139,10 +145,11 @@ def LifeTimesFull_WB(data,
         k = pm.Uniform('k', lower=k_params[0], upper=k_params[1])
 
         # parse data
-        t = pm.ConstantData("t", t, dims="obs_id")
+        t = pm.Data("t", t, dims="obs_id")
 
         # set up custom pll
-        pm.DensityDist("likeli", beta, b, k, dataIdentifiers, 
+        pm.DensityDist("likeli", beta, b, k, 
+                       test_id, reference_id, censoreds, 
                        logp=loglwb, observed=t, dims='obs_id')
 
     return model

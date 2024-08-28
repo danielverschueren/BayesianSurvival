@@ -20,9 +20,9 @@ def plotPosteriorBetaBayesFactors(PosteriorsT, beta_params, HRs, ax):
     num_steps = len(PosteriorsT)
 
     for c, HR in zip(color, HRs):
-        bf = np.array([BayesFactorLowerThanHR(PosteriorsT[i][1].beta.values, 
-                                    beta_prior.cdf(HR), 
-                                    HR) for i in range(num_steps)])
+        bf = np.array([BayesFactorLowerThanHR(
+            PosteriorsT[i][1].beta.values, beta_prior.cdf(HR), HR
+        ) for i in range(num_steps)])
         ax.semilogy(ts, bf, color=c)
 
     ax.legend(["HR < {}".format(HR) for HR in HRs])
@@ -46,9 +46,14 @@ def plotPosteriorBetaCI(PosteriorsT, HRs, ax):
     colorBeta = cm.BuGn(np.linspace(0.2, 1, len(Confs)))
 
     for c, CF in zip(colorBeta, CFs):
-        y1 = np.array([np.exp(PosteriorsT[i][1].quantile([CF[0]]).beta.values) for i in range(num_steps)]).T[0]
-        y2 = np.array([np.exp(PosteriorsT[i][1].quantile([CF[1]]).beta.values) for i in range(num_steps)]).T[0]
-        ax[0].fill_between(ts, y1, y2, alpha=0.15, color='b', label='_nolegend_')
+        y1 = np.array([np.exp(
+            PosteriorsT[i][1].quantile([CF[0]]).beta.values
+        ) for i in range(num_steps)]).T[0]
+        y2 = np.array([np.exp(
+            PosteriorsT[i][1].quantile([CF[1]]).beta.values
+        ) for i in range(num_steps)]).T[0]
+        ax[0].fill_between(ts, y1, y2, alpha=0.15, 
+                           color='b', label='_nolegend_')
         ax[0].plot(ts, y1, color = c)
         ax[0].plot(ts, y2, color = c, label='_nolegend_')
 
@@ -60,8 +65,10 @@ def plotPosteriorBetaCI(PosteriorsT, HRs, ax):
     color = cm.Reds(np.linspace(0.2, 1, len(HRs)))
 
     for c, HR in zip(color, HRs):
-        y1 = np.array([(PosteriorsT[i][1].beta.values < np.log(HR)).sum()/ \
-                       PosteriorsT[i][1].beta.values.size for i in range(num_steps)]).T
+        y1 = np.array([(
+            PosteriorsT[i][1].beta.values < np.log(HR)
+        ).sum() / \
+            PosteriorsT[i][1].beta.values.size for i in range(num_steps)]).T
         ax[1].plot(ts, y1, color=c)
 
     ax[1].legend(["HR < {}".format(HR) for HR in HRs])
@@ -115,10 +122,10 @@ def plotKMPosteriorFits(PosteriorsT, dataDF, func, ax, num_shows):
         xT = np.linspace(0,Tend,100)
 
         # evaluate survivals
-        surv_TR = func(baseline, xT, 0)
-        surv_RW = func(baseline, xT, beta) 
-        survs = [surv_RW, surv_TR]
-        kind = ['RW', 'TR']
+        surv_ref = func(baseline, xT, 0)
+        surv_test = func(baseline, xT, beta) 
+        survs = [surv_test, surv_ref]
+        kind = ['Test', 'Reference']
 
         # plot KaplanMeier curves up until T
         color = ['b', 'r']
@@ -130,7 +137,7 @@ def plotKMPosteriorFits(PosteriorsT, dataDF, func, ax, num_shows):
         for i in range(2):
             ax[j // jump].plot(xT, survs[i]/survs[i][0], color=color[i])
         
-        ax[j // jump].legend(['RW-KM, T={:.2f}'.format(T), 'TR-KM', 'RW-fit', 'TR-fit'])
+        ax[j // jump].legend(['Test-KM, T={:.2f}'.format(T), 'Ref-KM', 'Test-fit', 'Ref-fit'])
         ax[j // jump].set_xlabel('time [months]')
         ax[j // jump].set_ylabel('survival prob')
 
@@ -198,7 +205,7 @@ def plotPosteriors(PosteriorsT,
 
     return ax
 
-def plotKaplanMeier(DFX, colors, ax, cols=['RW'], Ts=[-1.]):
+def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
     """
     +==========================================================================+
 
@@ -314,7 +321,7 @@ def plotKaplanMeier(DFX, colors, ax, cols=['RW'], Ts=[-1.]):
             ax.plot(x, np.array(y), color=color)
 
     # ax.set_title('KM-curve of data, censored subjects not displayed')
-    ax.legend(['RW', 'TR'])
+    ax.legend(['Test', 'Reference'])
     ax.set_xlabel('time of X')
     ax.set_ylabel('Survival')
 

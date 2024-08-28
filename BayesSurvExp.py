@@ -1,7 +1,6 @@
 import numpy as np
 import pymc as pm
 import pandas as pd
-import numpy as np
 import pymc as pm
 import matplotlib.pyplot as plt
 import pickle
@@ -14,11 +13,12 @@ if __name__ == "__main__":
     # load data
     file = "PBMonoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
+    dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)
 
     # plot KM
     fig, ax = plt.subplots()
     color = ['b', 'r']
-    kind = ['RW', 'TR']
+    kind = ['Test', 'Reference']
     plotKaplanMeier(dataDF, color, ax, cols=kind, Ts=[30, 30])
     #plt.show()
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     ts = np.linspace(1,30,num_steps)
     beta_prior = (0, 0.5)
     nu_prior = (-2, 0.5)
-    load = True
+    load = False
 
     if load:
         with open('PosteriorExponentialPembro.pk', 'rb') as f:
