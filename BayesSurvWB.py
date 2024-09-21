@@ -24,10 +24,10 @@ if __name__ == "__main__":
     #plt.show()
 
     # model fitting
-    ndraw = 5000
-    num_steps = 6
+    ndraw = 10000
+    num_steps = 40
     PosteriorsT = []
-    ts = np.linspace(1,30,num_steps)
+    ts = np.linspace(1,40,num_steps)
     beta_prior = (0, 0.5)
     b_prior = (-2, 1)
     k_prior = (0.9, 1.1)
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     else:
         for T in ts:
             data, t, censoredsAtT = resetDataToT(dataDF, T)
-            model = LifeTimesFull_WB(data, 
+            model = LifeTimesFull_WB(data[['Test', 'Reference']].to_numpy(), 
                                     t,
                                     censoredsAtT, 
                                     beta_params=beta_prior,

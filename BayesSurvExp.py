@@ -37,7 +37,7 @@ if __name__ == "__main__":
     else:
         for T in ts:
             data, t, censoredsAtT = resetDataToT(dataDF, T)
-            model = LifeTimesFull_Exp(data, 
+            model = LifeTimesFull_Exp(data[['Test', 'Reference']].to_numpy(), # order matters!
                                     t,
                                     censoredsAtT, 
                                     beta_params=beta_prior,

@@ -2,10 +2,29 @@ import numpy as np
 import pymc as pm
 import pandas as pd
 
-def resetDataToT(dataX, T):
+def resetDataToT(
+        dataX: pd.DataFrame, 
+        T: float,
+    ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """
     +==========================================================================+
+    Reset historic data to time point T, so simulate real time updates.
 
+    The input dataframe needs a specific structure, with subjects on the 
+    rows, and columns:
+        'StartTime' for the time at which subject had started,
+        'EndTime' for the time at which the subject was censored/dropped out, 
+        'Test' to indicate if subject belongs to the test or trial data
+        'Censored' to indicate if subject was censored or not
+
+    Args:
+        dataX (pd.DataFrame) :  data frame with data 
+        T (float) : time to reset endtime of subjects to
+
+    Returns:
+        pd.DataFrame with subjects that started before T, 
+        np.ndarray of updated endtimes, 
+        np.ndarray of censoring indiciation
     +==========================================================================+
     """
     # get data
@@ -33,15 +52,31 @@ def resetDataToT(dataX, T):
 
     return data, t, censoredsAtT
     
-def loglp(t, 
-          beta, 
-          nu, 
-          test_id,
-          reference_id,
-          censoreds):
+def loglp(
+        t: pm.CallableTensor, 
+        beta: pm.CallableTensor, 
+        nu: pm.CallableTensor, 
+        test_id: pm.CallableTensor,
+        reference_id: pm.CallableTensor,
+        censoreds: pm.CallableTensor,
+    ) -> pm.CallableTensor:
     """
     +==========================================================================+
+    Survival Log likelihood for an exponential distribution of lifetimes between
+    two populations identified with test_id or reference_id and constant hazard 
+    beta difference between the populations
 
+    Args:
+        t (pm.CallableTensor) : (N,) vector of drop/censoring times
+        beta (pm.CallableTensor) : (1,) hazard rate
+        nu (pm.CallableTensor) : (1,) exponential rate mean (distribution param)
+        test_id (pm.CallableTensor) : (N,) subject in test set (1) or not (0)
+        reference_id (pm.CallableTensor) : (N,) subject in reference set (1)
+                                            or not (0)
+        censoreds (pm.CallableTensor) : (N,) subject censored (1) or not (0)
+    
+    Returns:
+        pm.CallableTensor Survival Log Likelihood of data given parameters.
     +==========================================================================+
     """
     eps = 1e-10
@@ -61,21 +96,37 @@ def loglp(t,
     
     return pll
 
-def LifeTimesFull_Exp(data, 
-                      t, 
-                      censoreds,
-                      beta_params=(0,0.5), 
-                      nu_params=(-2,0.5)):
+def LifeTimesFull_Exp(
+        data: np.ndarray, 
+        t: np.ndarray, 
+        censoreds: np.ndarray,
+        beta_params: tuple[float, float]=(0.,0.5), 
+        nu_params: tuple[float, float]=(-2.,0.5),
+    ) -> pm.Model:
     """
     +==========================================================================+
-    
+    Function to instantiate a pymc model consturcted using an exponential 
+    lifetimes distribution, constant hazard rate, observed lifetimes t, data_id 
+    to determine where subject's group.
+
+    Args:
+        data (np.ndarray) : (N,2) data array with the following columns
+                            col 0: "test_id", in test set (1) or not (0)
+                            col 1: "reference_id", in reference set (1) or not 
+                            (0)
+        t (np.ndarray) : (N,) observed lifetimes
+        censoreds (np.ndarray) : (N,) censored (1) or not (0)
+        beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
+        nu_params tuple(float, float): nu prior parameters: LogNorm(mu, sigma)
+    Returns:
+        pm.Model pymc model to sample from            
     +==========================================================================+
     """
     with pm.Model() as model:
 
         # get IDs, order matters!
-        test_id = pm.Data("test_id", data['Test'].to_numpy())
-        reference_id = pm.Data("reference_id", data['Reference'].to_numpy())
+        test_id = pm.Data("test_id", data[:,0])
+        reference_id = pm.Data("reference_id", data[:,1])
         censoreds = pm.Data("censoreds_id", censoreds)
 
         # set up priors
@@ -92,16 +143,33 @@ def LifeTimesFull_Exp(data,
 
     return model
 
-def loglwb(t, 
-           beta, 
-           b, 
-           k, 
-           test_id,
-           reference_id,
-           censoreds):
+def loglwb(
+        t: pm.CallableTensor, 
+        beta: pm.CallableTensor, 
+        b: pm.CallableTensor, 
+        k: pm.CallableTensor,
+        test_id: pm.CallableTensor,
+        reference_id: pm.CallableTensor,
+        censoreds: pm.CallableTensor,
+    ) -> pm.CallableTensor:
     """
     +==========================================================================+
+    Survival Log likelihood for an Weibull distribution of lifetimes between
+    two populations identified with test_id or reference_id and constant hazard 
+    beta difference between the populations
 
+    Args:
+        t (pm.CallableTensor) : (N,) vector of drop/censoring times
+        beta (pm.CallableTensor) : (1,) hazard rate
+        b (pm.CallableTensor) : (1,) Weibull b param (distribution param)
+        k (pm.CallableTensor) : (1,) Weibull k param (distribution param)
+        test_id (pm.CallableTensor) : (N,) subject in test set (1) or not (0)
+        reference_id (pm.CallableTensor) : (N,) subject in reference set (1)
+                                            or not (0)
+        censoreds (pm.CallableTensor) : (N,) subject censored (1) or not (0)
+    
+    Returns:
+        pm.CallableTensor Survival Log Likelihood of data given parameters.
     +==========================================================================+
     """
     eps = 1e-10
@@ -121,22 +189,39 @@ def loglwb(t,
     
     return pll
 
-def LifeTimesFull_WB(data, 
-                     t, 
-                     censoreds, 
-                     beta_params=(0,2), 
-                     b_params=(-2,3), 
-                     k_params=(0.9,1.1)):
+def LifeTimesFull_WB(
+        data: np.ndarray, 
+        t: np.ndarray, 
+        censoreds: np.ndarray,
+        beta_params: tuple[float, float]=(0.,2.), 
+        b_params: tuple[float, float]=(-2.,3.), 
+        k_params: tuple[float, float]=(0.9,1.1)
+    ) -> pm.Model:
     """
     +==========================================================================+
-    
+    Function to instantiate a pymc model consturcted using a Weibull
+    lifetimes distribution, constant hazard rate, observed lifetimes t, data_id 
+    to determine where subject's group.
+
+    Args:
+        data (np.ndarray) : (N,2) data array with the following columns
+                            col 0: "test_id", in test set (1) or not (0)
+                            col 1: "reference_id", in reference set (1) or not 
+                            (0)
+        t (np.ndarray) : (N,) observed lifetimes
+        censoreds (np.ndarray) : (N,) censored (1) or not (0)
+        beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
+        b_params tuple(float, float): b prior parameters: LogNorm(mu, sigma)
+        k_params tuple(float, float): k prior parameters: Unif(low, high)
+    Returns:
+        pm.Model pymc model to sample from     
     +==========================================================================+
     """
     with pm.Model() as model:
 
         # get IDs, order matters!
-        test_id = pm.Data("test_id", data['Test'].to_numpy())
-        reference_id = pm.Data("reference_id", data['Reference'].to_numpy())
+        test_id = pm.Data("test_id", data[:,0])
+        reference_id = pm.Data("reference_id", data[:,1])
         censoreds = pm.Data("censoreds_id", censoreds)
 
         # set up priors
@@ -154,10 +239,24 @@ def LifeTimesFull_WB(data,
 
     return model
 
-def survExp(baseline, x, beta):
+def survExp(
+        baseline: dict, 
+        x: np.ndarray, 
+        beta: float
+    ) -> np.ndarray:
     """
     +==========================================================================+
+    Function to evaluate exponential survival probability for parameter 'nu' in 
+    baseline and log hazard rate beta.
 
+    p(x) = exp(-nu*x*exp(beta))
+
+    Args:
+        baseline (dict) : dictionary with parameter 'nu'
+        x (np.ndarray) : (n,) array of survival times to evaluate
+        beta (float) : log hazard rate
+    Returns:
+        np.ndarray : survival probabilities for x
     +==========================================================================+
     """
     if 'nu' in baseline.keys():
@@ -167,10 +266,24 @@ def survExp(baseline, x, beta):
 
     return np.exp(-nu*x*np.exp(beta))
 
-def survWB(baseline, x, beta):
+def survWB( 
+        baseline: dict, 
+        x: np.ndarray, 
+        beta: float
+    ) -> np.ndarray:
     """
     +==========================================================================+
+    Function to evaluate Weibull survival probability for parameter 'k' and 'b' 
+    in baseline and log hazard rate beta.
 
+    p(x) = exp(-b*x**k*exp(beta))
+
+    Args:
+        baseline (dict) : dictionary with parameter 'k' and 'b'
+        x (np.ndarray) : (n,) array of survival times to evaluate
+        beta (float) : log hazard rate
+    Returns:
+        np.ndarray : survival probabilities for x
     +==========================================================================+
     """
     if 'b' in baseline.keys() and 'k' in baseline.keys():
@@ -181,16 +294,30 @@ def survWB(baseline, x, beta):
     
     return np.exp(-np.exp(beta)*b*x**k)
 
-def BayesFactorLowerThanHR(posterior_samples, prior_prob, HR):
+def BayesFactorLowerThanHR(
+        posterior_samples: np.ndarray, 
+        prior_cdf: float, 
+        HR: float
+    ) -> float:
     """
     +==========================================================================+
+    Determination of BayesFactor for hazard rate lower than HR by counting 
+    samples below cut-off HR from posterior distibution to determine an 
+    empirical CDF and comparing it to the prior CDF.
 
+    Args:
+        posterior_samples (np.ndarray) : (N,) array with posterior samples
+        prior_prob (float) : prior_prob cdf until cutoff
+        HR (float) : hazard rate
+    Returns:
+        float : BayesFactor for hazard rate lower then HR
     +==========================================================================+
     """
     numSamples = posterior_samples.size
     post_prob = (posterior_samples < np.log(HR)).sum()/numSamples + 0.5/numSamples
     # add numerical error 
-    return post_prob/prior_prob
+    return post_prob/prior_cdf
+        
 
 if __name__ == "__main__":
 
