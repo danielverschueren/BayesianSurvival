@@ -4,10 +4,106 @@ import pymc as pm
 import arviz as az
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import pandas as pd
 
-from BayesSurv import BayesFactorLowerThanHR
+SMALL_SIZE = 13.5
+MEDIUM_SIZE = 15
+BIGGER_SIZE = 18
 
-def plotPosteriorBetaBayesFactors(PosteriorsT, beta_params, HRs, ax):
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rcParams['lines.linewidth'] = 2
+
+
+from BayesSurv import (
+    BayesFactorLowerThanHR, 
+    ProbLowerThanHR, 
+    BayesFactorBetweenHR
+)
+
+def plotPosteriorBetaBayesFactors(
+        PosteriorsT, 
+        beta_params, 
+        HRLs, 
+        HRHs, 
+        ax
+    ):
+    """
+    +==========================================================================+
+
+    +==========================================================================+
+    """
+    # plot the probability that HR > X over time, prior is norm
+    ts = np.array([PosteriorsT[i][0] for i in range(len(PosteriorsT))])
+    beta_prior = norm(beta_params[0], beta_params[1])
+    color = cm.BrBG(np.linspace(0, 1, len(HRLs+HRHs)))
+    num_steps = len(PosteriorsT)
+
+    HRs = HRLs + HRHs
+    # 0
+    ax.hlines(1, ts[0], ts[-1], color='k', label='_nolegend_', linewidth=1)
+
+    for c, HR in zip(color[:len(HRLs)], HRLs):
+        #prior_prob = beta_prior.cdf(np.log(HR)) - beta_prior.cdf(-np.log(HR)) 
+        prior_prob = beta_prior.cdf(np.log(HR))
+        bf = np.array([1/BayesFactorLowerThanHR(
+            PosteriorsT[i][1].beta.values.flatten(), 
+            prior_prob, 
+            HR,
+        ) for i in range(num_steps)])
+        ax.semilogy(ts, bf, color=c)
+    
+    for c, HR in zip(color[len(HRLs):], HRHs):
+        #prior_prob = beta_prior.cdf(np.log(HR)) - beta_prior.cdf(-np.log(HR)) 
+        prior_prob = beta_prior.cdf(np.log(HR))
+        bf = np.array([BayesFactorLowerThanHR(
+            PosteriorsT[i][1].beta.values.flatten(), 
+            prior_prob, 
+            HR,
+        ) for i in range(num_steps)])
+        ax.semilogy(ts, bf, color=c)
+
+    style = ['-.', '--', '-']
+    for i, BF in enumerate([3,10,30]):
+        ax.hlines(
+            BF, 
+            ts[0], 
+            ts[-1], 
+            color='k', 
+            alpha=0.3, 
+            linestyle=style[i], 
+            linewidth=1
+        )
+
+    for i, BF in enumerate([1/3,1/10,1/30]):
+        ax.hlines(
+            BF, 
+            ts[0], 
+            ts[-1], 
+            color='k', 
+            alpha=0.3, 
+            linestyle=style[i], 
+            linewidth=1
+        )
+
+    ax.legend([f"HR>{HR}" for HR in HRs], loc=(1.04, 1))
+    ax.set_xlabel('time [months]')
+    ax.set_ylabel('BF_01')
+    ax.autoscale(enable=True, axis='x', tight=True)
+
+    return ax
+
+def plotPosteriorBetaBayesFactors_inBetween(
+        PosteriorsT, 
+        beta_params, 
+        HRs, 
+        ax
+    ):
     """
     +==========================================================================+
 
@@ -19,19 +115,98 @@ def plotPosteriorBetaBayesFactors(PosteriorsT, beta_params, HRs, ax):
     color = cm.Reds(np.linspace(0.2, 1, len(HRs)))
     num_steps = len(PosteriorsT)
 
+    # 0
+    ax.hlines(1, ts[0], ts[-1], color='k', label='_nolegend_', linewidth=1)
+
     for c, HR in zip(color, HRs):
-        bf = np.array([BayesFactorLowerThanHR(
-            PosteriorsT[i][1].beta.values, beta_prior.cdf(HR), HR
+        prior_prob = beta_prior.cdf(np.log(HR)) - beta_prior.cdf(-np.log(HR)) 
+        bf = np.array([BayesFactorBetweenHR(
+            PosteriorsT[i][1].beta.values.flatten(), 
+            prior_prob, 
+            np.exp(-np.log(HR)),
+            HR
         ) for i in range(num_steps)])
         ax.semilogy(ts, bf, color=c)
 
-    ax.legend(["HR < {}".format(HR) for HR in HRs])
+    style = ['-.', '--', '-']
+    for i, BF in enumerate([3,10,30]):
+        ax.hlines(
+            BF, 
+            ts[0], 
+            ts[-1], 
+            color='k', 
+            alpha=0.3, 
+            linestyle=style[i], 
+            linewidth=1
+        )
+
+    for i, BF in enumerate([1/3,1/10,1/30]):
+        ax.hlines(
+            BF, 
+            ts[0], 
+            ts[-1], 
+            color='k', 
+            alpha=0.3, 
+            linestyle=style[i], 
+            linewidth=1
+        )
+
+    ax.legend([f"{np.exp(-np.log(HR)):.2f}>HR>{HR}" for HR in HRs], loc=(1.04, 1))
     ax.set_xlabel('time [months]')
     ax.set_ylabel('BF_01')
+    ax.autoscale(enable=True, axis='x', tight=True)
 
     return ax
 
-def plotPosteriorBetaCI(PosteriorsT, HRs, ax):
+def betaBayesFactors(
+        PosteriorsT, 
+        beta_params, 
+        HRs
+    ):
+    """
+    +==========================================================================+
+
+    +==========================================================================+
+    """
+    # plot the probability that HR > X over time, prior is norm
+    ts = np.array([PosteriorsT[i][0] for i in range(len(PosteriorsT))])
+    beta_prior = norm(beta_params[0], beta_params[1])
+    num_steps = len(PosteriorsT)
+
+    outfileBF = pd.DataFrame(index=ts)
+    outfileCI = pd.DataFrame(index=ts)
+    outfileCF = pd.DataFrame(index=ts)
+
+    for HR in zip(HRs):
+        numSamples = len(PosteriorsT[0][1].beta.values.flatten())
+        bf = np.array([BayesFactorLowerThanHR(
+            PosteriorsT[i][1].beta.values.flatten(), 
+            beta_prior.cdf(HR), 
+            HR
+        ) for i in range(num_steps)])
+        ci = np.array([ProbLowerThanHR(
+            PosteriorsT[i][1].beta.values.flatten(), 
+            HR
+        ) for i in range(num_steps)])
+        outfileBF[HR] = bf
+        outfileCI[HR] = ci
+
+    for p in [0.5, 0.1, 0.05, 0.025, 0.01]:
+        cf = [np.exp(
+                np.sort(
+                    PosteriorsT[i][1].beta.values.flatten()
+                )[[int(numSamples*p), int(numSamples*(1-p))]]
+              ) for i in range(num_steps)]
+
+        outfileCF[p] = cf
+
+    return outfileBF, outfileCI, outfileCF
+
+def plotPosteriorBetaCI(
+        PosteriorsT, 
+        HRs, 
+        ax
+    ):
     """
     +==========================================================================+
 
@@ -52,105 +227,126 @@ def plotPosteriorBetaCI(PosteriorsT, HRs, ax):
         y2 = np.array([np.exp(
             PosteriorsT[i][1].quantile([CF[1]]).beta.values
         ) for i in range(num_steps)]).T[0]
-        ax[0].fill_between(ts, y1, y2, alpha=0.15, 
+        ax.plot(ts, y1, color = c,)
+        ax.plot(ts, y2, color = c, label='_nolegend_',)
+        ax.fill_between(ts, y1, y2, alpha=0.15, 
                            color='b', label='_nolegend_')
-        ax[0].plot(ts, y1, color = c)
-        ax[0].plot(ts, y2, color = c, label='_nolegend_')
 
-    ax[0].legend(["CI {}".format(Conf) for Conf in Confs])
-    ax[0].set_xlabel('time [months]')
-    ax[0].set_ylabel('beta')
+    for HR in HRs:    
+        ax.hlines(HR,
+                  ts[0], 
+                  ts[-1], 
+                  color='k', 
+                  alpha=0.3, 
+                  label='_nolegend_', 
+                  linewidth=1
+        )
 
-    # plot the probability that HR > X over time
-    color = cm.Reds(np.linspace(0.2, 1, len(HRs)))
-
-    for c, HR in zip(color, HRs):
-        y1 = np.array([(
-            PosteriorsT[i][1].beta.values < np.log(HR)
-        ).sum() / \
-            PosteriorsT[i][1].beta.values.size for i in range(num_steps)]).T
-        ax[1].plot(ts, y1, color=c)
-
-    ax[1].legend(["HR < {}".format(HR) for HR in HRs])
-    ax[1].set_xlabel('time [months]')
-    ax[1].set_ylabel('probability HR < X')
+    ax.legend(["CI {}".format(Conf) for Conf in Confs], loc=(1.04,1))
+    ax.set_xlabel('time [months]')
+    ax.set_ylabel('beta')
+    ax.autoscale(enable=True, axis='x', tight=True)
 
     return ax
 
-def plotKMPosteriorFits(PosteriorsT, dataDF, func, ax, num_shows):
+def plotKMPosteriorFits(
+        T,
+        Tend,
+        PosteriorsT, 
+        dataDF, 
+        func, 
+        ax, 
+        plot_ref_intervals=False,
+        prior=False
+    ):
     """
     +==========================================================================+
 
     +==========================================================================+
     """
-    # plot the 50th quantile
-    Tend = PosteriorsT[-1][0]
-    num_steps = len(PosteriorsT)
-    jump = num_steps // num_shows
-    colorT = cm.Oranges(np.linspace(0.2, 1, num_shows))
-    colorR = cm.Purples(np.linspace(0.2, 1, num_shows))
+    colorT = cm.Purples(np.linspace(0.2, 1, 3))
+    colorR = cm.Oranges(np.linspace(0.2, 0.5, 3))
 
     # check if beta in parameter list
-    if 'beta' in PosteriorsT[0][1].quantile([0.5]).keys():
-        pass
-    else:
+    if 'beta' not in PosteriorsT.keys():
         raise Exception('beta param not in posterior keys...')
+    
+    # set up arrays for plotting
+    xT = np.linspace(0,Tend,100)
+    qts = [0.05, 0.95] if prior else [0.5, 0.05, 0.95]
+    surv_test = np.zeros((len(qts),len(xT)))
+    surv_ref = np.zeros((len(qts),len(xT)))
 
-    for iter in range(0, num_steps, jump):
+    posterior_models_test = eval_joint_posterior(
+        func, 
+        PosteriorsT, 
+        xT, 
+        ref=False
+    )
+    posterior_models_ref = eval_joint_posterior(
+        func, 
+        PosteriorsT, 
+        xT, 
+        ref=True
+    )
 
-        # grab values
-        j = iter + jump - 1
-        baseline = dict()
-        for key in list(PosteriorsT[j][1].quantile([0.5]).keys()):
-            if key == 'beta':
-                beta = PosteriorsT[j][1].quantile([0.5])[key].values
-            else:
-                baseline[key] = PosteriorsT[j][1].quantile([0.5])[key].values
-        T = PosteriorsT[j][0]
-
-        # display result
-        print("==================================================================")
-        print("T = {}".format(T))
-        print("==================================================================")
-        for key in list(baseline.keys()):
-            print(f'{key} (50th): \t\t {baseline[key]}')
-        print(f'beta (50th): \t\t {beta}')
-        print(f'exp(beta) (50th): \t {1/np.exp(beta)}')
-        print
-
-        # set up arrays for plotting
-        xT = np.linspace(0,Tend,100)
-
-        # evaluate survivals
-        surv_ref = func(baseline, xT, 0)
-        surv_test = func(baseline, xT, beta) 
-        survs = [surv_test, surv_ref]
-        kind = ['Test', 'Reference']
-
-        # plot KaplanMeier curves up until T
-        color = ['b', 'r']
-        Ts = [T, Tend]
-        plotKaplanMeier(dataDF, color, ax[j // jump], kind, Ts)
-
-        # plot survival functions at T
-        color = [colorR[j // jump], colorT[j // jump]]
-        for i in range(2):
-            ax[j // jump].plot(xT, survs[i]/survs[i][0], color=color[i])
+    # eval qts
+    for i in range(len(qts)):
+        sorted_post_models = np.sort(posterior_models_test, axis=0)
+        surv_test[i] = sorted_post_models[int(qts[i]*len(sorted_post_models))]
         
-        ax[j // jump].legend(['Test-KM, T={:.2f}'.format(T), 'Ref-KM', 'Test-fit', 'Ref-fit'])
-        ax[j // jump].set_xlabel('time [months]')
-        ax[j // jump].set_ylabel('survival prob')
+        sorted_post_models = np.sort(posterior_models_ref, axis=0)
+        surv_ref[i] = sorted_post_models[int(qts[i]*len(sorted_post_models))]
+
+        
+    kind = ['Test', 'Reference']
+    survs = [surv_test[0], surv_ref[0]] # median
+    # plot KaplanMeier curves up until T
+
+    # plot CIs
+    skip = 0 if prior else 1
+    if plot_ref_intervals:    
+        for l_ref, u_ref in zip(surv_ref[skip::2], surv_ref[skip+1::2]):
+            y1 = l_ref
+            y2 = u_ref
+            ax.plot(xT, y1, color = colorR[1], label='_nolegend_',)
+            ax.plot(xT, y2, color = colorR[1], label='_nolegend_',)
+            ax.fill_between(xT, y1, y2, alpha=0.15, 
+                            color=colorR[1], label='_nolegend_')
+          
+    for l_test, u_test  in zip(surv_test[skip::2], surv_test[skip+1::2]):
+        y1 = l_test
+        y2 = u_test
+        ax.plot(xT, y1, color = colorT[1], label='_nolegend_',)
+        ax.plot(xT, y2, color = colorT[1], label='_nolegend_',)
+        ax.fill_between(xT, y1, y2, alpha=0.15, 
+                        color=colorT[1], label='_nolegend_')
+     
+
+    # plot survival functions at T
+    color = [colorT[-1], colorR[-1]]
+    for i in range(2):
+        if not prior: ax.plot(xT, survs[i]/survs[i][0], color=color[i])
+
+    Ts = [T, Tend]
+    color = ['b', 'r']
+    plotKaplanMeier(dataDF, color, ax, kind, Ts)
+    
+    ax.set_xlabel('time [months]')
+    ax.set_ylabel('survival prob')
+    ax.autoscale(enable=True, axis='x', tight=True)
+    ax.text(0.9*Tend,0.9, f"T={T:.2f}")
 
     return ax
 
-def plotPosteriors(PosteriorsT,
-                   key,
-                   ax, 
-                   num_shows, 
-                   beta_prior, 
-                   key_prior, 
-                   xlims_nu = [0, 0.1],
-                   xlims_beta = [-1, 1]):
+def plotPosteriors(
+        PosteriorsT,
+        ax, 
+        show_js, 
+        key_priors, 
+        xlims_baseline = [[0, 0.1], [0.5, 1.5]],
+        xlims_beta = [-1, 1]
+    ):
     """
     +==========================================================================+
 
@@ -158,54 +354,61 @@ def plotPosteriors(PosteriorsT,
     """
     # plot resulting posterior
     num_steps = len(PosteriorsT)
-    jump = num_steps // num_shows
+    num_shows = len(show_js)
     colorBeta = cm.BuGn(np.linspace(0.2, 1, num_shows))
-    colorNu = cm.YlOrRd(np.linspace(0.2, 1, num_shows))
+    colorBaselines = cm.YlOrRd(np.linspace(0.2, 1, num_shows))
 
     # plot prior
-    plot_pymc(pm.LogNormal.dist(mu=key_prior[0],sigma=key_prior[1], size=1000), ax[1], xlims_nu)
-    plot_pymc(pm.Normal.dist(mu=beta_prior[0],sigma=beta_prior[1], size=1000), ax[0], xlims_beta)
+    for j, key in enumerate(['beta'] + key_priors):
+        grid, pdf = az.kde(PosteriorsT[0][2][key].values.flatten())
+        ax[j].plot(grid, pdf/np.max(pdf),color='lightgrey')
     xt = [0]
     leg_list = ['prior']
 
-    for iter in range(0, num_steps, jump):
+    for i, iter in enumerate(show_js):
 
-        # select color
-        i = iter + jump - 1
-        cBeta = colorBeta[i // jump]
-        cNu = colorNu[i // jump]
+        cBeta = colorBeta[i]
+        cBaseline = colorBaselines[i]
 
         # plot beta
-        lam = PosteriorsT[i][1].quantile([0.5]).beta.values
+        lam = PosteriorsT[iter][1].quantile([0.5]).beta.values
         if lam < 0:
             lam = 0.001
-        grid, pdf = az.kde(PosteriorsT[i][1].beta.values.flatten())
+        grid, pdf = az.kde(PosteriorsT[iter][1].beta.values.flatten())
         ax[0].plot(grid, pdf/np.max(pdf), color=cBeta)
         ax[0].set_xlabel('value [a.u.]')
         ax[0].set_ylabel('pdf [a.u.]')
         ax[0].set_xlim(xlims_beta)
-        ax[0].legend(['T={:.2f}'.format(PosteriorsT[i][0])])
+        ax[0].legend(['T={:.2f}'.format(PosteriorsT[iter][0])], loc=(1.06, 1))
 
         # plot nu
-        grid, pdf = az.kde(PosteriorsT[i][1][key].values.flatten())
-        xt.append(grid[np.argmax(pdf)])
-        ax[1].plot(grid, pdf/np.max(pdf), color=cNu)
-        ax[1].set_xlabel('value [a.u.]')
-        ax[1].set_ylabel('pdf [a.u.]')
-        ax[1].set_xlim(xlims_nu)
+        for j, key in enumerate(key_priors):
+            grid, pdf = az.kde(PosteriorsT[i][1][key].values.flatten())
+            xt.append(grid[np.argmax(pdf)])
+            ax[j+1].plot(grid, pdf/np.max(pdf), color=cBaseline)
+            ax[j+1].set_xlabel('value [a.u.]')
+            ax[j+1].set_ylabel('pdf [a.u.]')
+            ax[j+1].set_xlim(xlims_baseline[j])
 
         # create legend
-        leg_list.append('t={:.2f}'.format(PosteriorsT[i][0]))
+        leg_list.append('t={:.2f}'.format(PosteriorsT[iter][0]))
 
     ax[0].set_title('beta')
-    ax[1].set_title('nu')
-    ax[0].legend(leg_list)
-    ax[1].legend(leg_list)
+    for j, key in enumerate(key_priors):
+        ax[1+j].set_title(key)
+    for ax_i in ax:
+        ax_i.legend(leg_list, loc=(1.04, 1))
     ax[0].vlines(0, 0, 1, color='k')
 
     return ax
 
-def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
+def plotKaplanMeier(
+        DFX, 
+        colors, 
+        ax, 
+        cols=['Test'], 
+        Ts=[-1.]
+    ):
     """
     +==========================================================================+
 
@@ -220,11 +423,11 @@ def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
             data = np.zeros((num_obs, 3))
             data[:,0] = DF['EndTime'].astype(float).values
             data[:,1] = DF['StartTime'].astype(float).values
-            data[:,2] = DF['Censored'].astype(int).values
+            data[:,2] = DF['Event'].astype(int).values
         else:
             data = np.zeros((num_obs, 2))
             data[:,0] = DF['EndTime'].astype(float).values
-            data[:,1] = DF['Censored'].astype(int).values
+            data[:,1] = DF['Event'].astype(int).values
 
         # remove subjects who have not started
         if T != -1 and DF.shape[1] > 2:
@@ -240,7 +443,7 @@ def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
         if T != -1:
             #data = data[dummy < T]
             data[abs_time > T,-1] = 0
-            data[abs_time > T, 0] = abs_time[abs_time > T] - T
+            data[abs_time > T, 0] = T - data[abs_time > T,1]
             #data = data[data[:,0] < T]
         else:
             T = 1e8
@@ -250,7 +453,7 @@ def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
         print("+=============================================================+")
         print(f"KaplanMeier Plot {col}: T={T}")
         print(f"Number of current subjects {N}")
-        print(f"Number of subjects censored {M}")
+        print(f"Number of subjects Event/Censored {M}")
         print("+=============================================================+")
         data = data[data[:,0].argsort()]
 
@@ -265,17 +468,17 @@ def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
 
             if j < N-1:
                 if dat[-1] == 0: 
-                    # case 1: uncensored subject, no change in curve
+                    # case 1: no-event subject, no change in curve
                     # if censored, fewer subjects, but no change in emperical 
                     # survival prob
                     n_curr -= 1
                 elif dat[0] == data[j+1][0]:
-                    # case 2: equal timing to next subject and censored 
+                    # case 2: equal timing to next subject and no-event
                     # no change in survival 
                     d_curr += 1
                     n_curr -= 1
                 else:
-                    # case 3: censored, change curve
+                    # case 3: event, change curve
                     # change survival prob and update curve
 
                     # record step: left edge
@@ -321,13 +524,17 @@ def plotKaplanMeier(DFX, colors, ax, cols=['Test'], Ts=[-1.]):
             ax.plot(x, np.array(y), color=color)
 
     # ax.set_title('KM-curve of data, censored subjects not displayed')
-    ax.legend(['Test', 'Reference'])
+    ax.legend(['Test', 'Reference'], loc=(1.04, 1))
     ax.set_xlabel('time of X')
     ax.set_ylabel('Survival')
 
     return ax
 
-def plot_pymc(distr, ax=None, xlims=None):
+def plot_pymc(
+        distr, 
+        ax=None, 
+        xlims=None
+    ):
     """
     +==========================================================================+
 
@@ -348,6 +555,36 @@ def plot_pymc(distr, ax=None, xlims=None):
 
     return ax
 
-if __name__ == "__main__":
+def eval_joint_posterior(
+        func, 
+        posterior, 
+        t, 
+        ref=False
+    ):
+    """
+    +==========================================================================+
 
+    +==========================================================================+
+    """
+    baseline = dict()
+    for key in posterior.keys():
+        if key != 'beta':
+            baseline[key] = posterior[key].values.flatten()
+        else:
+            beta = posterior[key].values.flatten()
+            numModels = len(beta)
+        
+    if ref: beta[:] = 0
+
+    model_evals = np.zeros((numModels, len(t)))
+    for i in range(numModels):
+        baseline_i = dict()
+        for key in baseline.keys():
+            baseline_i[key] = baseline[key][i]
+        model_evals[i] = func(baseline_i, t, beta[i])
+
+    return model_evals   
+    
+
+if __name__ == "__main__":
     pass

@@ -1,0 +1,9 @@
+.vscode/
+data/
+docs/
+lit/
+notebooks/
+results/
+SimulatePeff.py
+__pycache__
+.DS_store

@@ -1,11 +1,15 @@
 import numpy as np
 import pymc as pm
 import pandas as pd
+import arviz as az
+
+# turn of df copy warning
+pd.options.mode.chained_assignment = None 
 
 def resetDataToT(
         dataX: pd.DataFrame, 
         T: float,
-    ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    ) -> pd.DataFrame:
     """
     +==========================================================================+
     Reset historic data to time point T, so simulate real time updates.
@@ -13,18 +17,16 @@ def resetDataToT(
     The input dataframe needs a specific structure, with subjects on the 
     rows, and columns:
         'StartTime' for the time at which subject had started,
-        'EndTime' for the time at which the subject was censored/dropped out, 
+        'EndTime' for the time at which the subject was event/dropped out, 
         'Test' to indicate if subject belongs to the test or trial data
-        'Censored' to indicate if subject was censored or not
+        'Event' to indicate if subject had an event or not
 
     Args:
         dataX (pd.DataFrame) :  data frame with data 
         T (float) : time to reset endtime of subjects to
 
     Returns:
-        pd.DataFrame with subjects that started before T, 
-        np.ndarray of updated endtimes, 
-        np.ndarray of censoring indiciation
+        pd.DataFrame with subjects that started before T and life times
     +==========================================================================+
     """
     # get data
@@ -34,23 +36,29 @@ def resetDataToT(
     t_abs = t_start + t
     real = data['Test'].astype(int).values
 
-    # update t for active uncensored subjects
-    censoredsAtT = data['Censored'].astype(int).values
-    censoredsAtT[(t_abs > T) & (real == 1)] = 0
-    t[(t_abs > T) & (censoredsAtT == 0) & (real == 1)] = \
-                    T - t_start[(t_abs > T) & (censoredsAtT == 0) & (real == 1)]
+    # update t for active unevent subjects
+    EventOrCensoredAtT = data['Event'].astype(int).values
+    EventOrCensoredAtT[(t_abs > T) & (real == 1)] = 0 # update times for these
+    t[(t_abs > T) & (EventOrCensoredAtT == 0) & (real == 1)] = \
+            T - t_start[(t_abs > T) & (EventOrCensoredAtT == 0) & (real == 1)]
 
     # check if all t's are valid (>= 0)
     assert (t > 0).all(), "Some lifetimes t <= 0."
+
+    # put all in dataFrame
+    data['t'] = pd.Series(t, index=data.index)
+    data['EventOrCensoredAtT'] = pd.Series(EventOrCensoredAtT, index=data.index)
 
     # print info
     print("+=============================================================+")
     print('T = {}'.format(T))
     print("+=============================================================+")
-    print('Current subjects: \t\t{}'.format(len(t[real == 1])))
-    print('Censored RW at T: \t\t{}'.format(np.sum(censoredsAtT[real == 1])))
+    print('Current subjects: \t\t\t{}'.format(len(t[real == 1])))
+    print('Event/Censored RW at T: \t\t{}'.format(
+        np.sum(EventOrCensoredAtT[real == 1])
+    ))
 
-    return data, t, censoredsAtT
+    return data
     
 def loglp(
         t: pm.CallableTensor, 
@@ -58,7 +66,7 @@ def loglp(
         nu: pm.CallableTensor, 
         test_id: pm.CallableTensor,
         reference_id: pm.CallableTensor,
-        censoreds: pm.CallableTensor,
+        events: pm.CallableTensor,
     ) -> pm.CallableTensor:
     """
     +==========================================================================+
@@ -73,7 +81,7 @@ def loglp(
         test_id (pm.CallableTensor) : (N,) subject in test set (1) or not (0)
         reference_id (pm.CallableTensor) : (N,) subject in reference set (1)
                                             or not (0)
-        censoreds (pm.CallableTensor) : (N,) subject censored (1) or not (0)
+        events (pm.CallableTensor) : (N,) subject event (1) or not (0)
     
     Returns:
         pm.CallableTensor Survival Log Likelihood of data given parameters.
@@ -87,19 +95,17 @@ def loglp(
 
     # baseline Hazard exp
     # trial
-    pll = pm.math.sum(reference_id*(censoreds*(pm.math.log(nu + eps) - nu*t) # true deads               
-                      - (1-censoreds)*nu*t))  # alive
+    pll = pm.math.sum(reference_id*(events*(pm.math.log(nu + eps) - nu*t) # true deads               
+                      - (1-events)*nu*t))  # alive
 
     # real
-    pll += pm.math.sum(test_id*(censoreds*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
-                      - (1-censoreds)*nu*t*expB)) # alive 
+    pll += pm.math.sum(test_id*(events*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
+                      - (1-events)*nu*t*expB)) # alive 
     
     return pll
 
 def LifeTimesFull_Exp(
-        data: np.ndarray, 
-        t: np.ndarray, 
-        censoreds: np.ndarray,
+        data: pd.DataFrame, 
         beta_params: tuple[float, float]=(0.,0.5), 
         nu_params: tuple[float, float]=(-2.,0.5),
     ) -> pm.Model:
@@ -110,12 +116,14 @@ def LifeTimesFull_Exp(
     to determine where subject's group.
 
     Args:
-        data (np.ndarray) : (N,2) data array with the following columns
-                            col 0: "test_id", in test set (1) or not (0)
-                            col 1: "reference_id", in reference set (1) or not 
-                            (0)
-        t (np.ndarray) : (N,) observed lifetimes
-        censoreds (np.ndarray) : (N,) censored (1) or not (0)
+        data (pd.DataFrame) : (N,m) data array with the following columns:
+                                'Test': "test_id", in test set (1) or not (0)
+                                'Reference': "reference_id", in reference set 
+                                             (1) or not (0)
+                                'EventOrCensoredAtT: "events_id", wether sample is 
+                                               event (1) or not (0)
+                                't': "t", observed lifetimes 
+                              Additional columns are allowed, not used.
         beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
         nu_params tuple(float, float): nu prior parameters: LogNorm(mu, sigma)
     Returns:
@@ -124,21 +132,25 @@ def LifeTimesFull_Exp(
     """
     with pm.Model() as model:
 
-        # get IDs, order matters!
-        test_id = pm.Data("test_id", data[:,0])
-        reference_id = pm.Data("reference_id", data[:,1])
-        censoreds = pm.Data("censoreds_id", censoreds)
+        # protected names: 'EventOrCensoredAtT', 'Test', 'Reference', 't'
+        assert ("EventOrCensoredAtT" in data.columns),  "'EventOrCensoredAtT' not in columns"
+        assert ("Test" in data.columns),         "'Test' not in columns"
+        assert ("Reference" in data.columns),    "'Reference' not in columns"
+        assert ("t" in data.columns),            "'t' not in columns"
+
+        test_id = pm.Data("test_id", data["Test"])
+        reference_id = pm.Data("reference_id", data["Reference"])
+        events = pm.Data("events_id", data["EventOrCensoredAtT"])
+        # parse data
+        t = pm.Data("t", data["t"], dims="obs_id")
 
         # set up priors
         beta = pm.Normal('beta', mu=beta_params[0], sigma=beta_params[1]) #23
         nu = pm.LogNormal('nu', mu=nu_params[0], sigma=nu_params[1])
 
-        # parse data
-        t = pm.Data("t", t, dims="obs_id")
-
         # set up custom pll
         pm.CustomDist("likeli", beta, nu,
-                      test_id, reference_id, censoreds, logp=loglp, 
+                      test_id, reference_id, events, logp=loglp, 
                       observed=t, dims='obs_id')
 
     return model
@@ -150,7 +162,7 @@ def loglwb(
         k: pm.CallableTensor,
         test_id: pm.CallableTensor,
         reference_id: pm.CallableTensor,
-        censoreds: pm.CallableTensor,
+        events: pm.CallableTensor,
     ) -> pm.CallableTensor:
     """
     +==========================================================================+
@@ -166,7 +178,7 @@ def loglwb(
         test_id (pm.CallableTensor) : (N,) subject in test set (1) or not (0)
         reference_id (pm.CallableTensor) : (N,) subject in reference set (1)
                                             or not (0)
-        censoreds (pm.CallableTensor) : (N,) subject censored (1) or not (0)
+        events (pm.CallableTensor) : (N,) subject event (1) or not (0)
     
     Returns:
         pm.CallableTensor Survival Log Likelihood of data given parameters.
@@ -180,19 +192,17 @@ def loglwb(
 
     # baseline Hazard Weibull
     # trial
-    pll = pm.math.sum(reference_id*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
-                      - (1-censoreds)*b*t**k))  # censoreds
+    pll = pm.math.sum(reference_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
+                      - (1-events)*b*t**k))  # events
 
     # real
-    pll += pm.math.sum(test_id*(censoreds*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
-                      - (1-censoreds)*expB*b*t**k))  # censoreds
+    pll += pm.math.sum(test_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
+                      - (1-events)*expB*b*t**k))  # events
     
     return pll
 
 def LifeTimesFull_WB(
-        data: np.ndarray, 
-        t: np.ndarray, 
-        censoreds: np.ndarray,
+        data: pd.DataFrame, 
         beta_params: tuple[float, float]=(0.,2.), 
         b_params: tuple[float, float]=(-2.,3.), 
         k_params: tuple[float, float]=(0.9,1.1)
@@ -204,12 +214,14 @@ def LifeTimesFull_WB(
     to determine where subject's group.
 
     Args:
-        data (np.ndarray) : (N,2) data array with the following columns
-                            col 0: "test_id", in test set (1) or not (0)
-                            col 1: "reference_id", in reference set (1) or not 
-                            (0)
-        t (np.ndarray) : (N,) observed lifetimes
-        censoreds (np.ndarray) : (N,) censored (1) or not (0)
+        data (pd.DataFrame) : (N,m) data array with the following columns:
+                                'Test': "test_id", in test set (1) or not (0)
+                                'Reference': "reference_id", in reference set 
+                                             (1) or not (0)
+                                'EventOrCensoredAtT: "events_id", wether sample is 
+                                               event (1) or not (0)
+                                't': "t", observed lifetimes 
+                              Additional columns are allowed, not used.
         beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
         b_params tuple(float, float): b prior parameters: LogNorm(mu, sigma)
         k_params tuple(float, float): k prior parameters: Unif(low, high)
@@ -219,22 +231,26 @@ def LifeTimesFull_WB(
     """
     with pm.Model() as model:
 
-        # get IDs, order matters!
-        test_id = pm.Data("test_id", data[:,0])
-        reference_id = pm.Data("reference_id", data[:,1])
-        censoreds = pm.Data("censoreds_id", censoreds)
+        # protected names: 'EventOrCensoredAtT', 'Test', 'Reference', 't'
+        assert ("EventOrCensoredAtT" in data.columns), "'EventOrCensoredAtT' not in columns"
+        assert ("Test" in data.columns),         "'Test' not in columns"
+        assert ("Reference" in data.columns),    "'Reference' not in columns"
+        assert ("t" in data.columns),            "'t' not in columns"
+
+        test_id = pm.Data("test_id", data["Test"])
+        reference_id = pm.Data("reference_id", data["Reference"])
+        events = pm.Data("events_id", data["EventOrCensoredAtT"])
+        # parse data
+        t = pm.Data("t", data["t"], dims="obs_id")
 
         # set up priors
         beta = pm.Normal('beta', mu=beta_params[0], sigma=beta_params[1]) #23
         b = pm.LogNormal('b', mu=b_params[0], sigma=b_params[1])
         k = pm.Uniform('k', lower=k_params[0], upper=k_params[1])
 
-        # parse data
-        t = pm.Data("t", t, dims="obs_id")
-
         # set up custom pll
         pm.DensityDist("likeli", beta, b, k, 
-                       test_id, reference_id, censoreds, 
+                       test_id, reference_id, events, 
                        logp=loglwb, observed=t, dims='obs_id')
 
     return model
@@ -303,7 +319,10 @@ def BayesFactorLowerThanHR(
     +==========================================================================+
     Determination of BayesFactor for hazard rate lower than HR by counting 
     samples below cut-off HR from posterior distibution to determine an 
-    empirical CDF and comparing it to the prior CDF.
+    empirical CDF and comparing it to the prior CDF. The evaluation is based on 
+    the Savage-Dickey method of nested hypotheses.
+        BF01 = p(H0|x)/p(H1|x) = BF0e/BF1e =
+        BF01 = p(beta < c| x)/p(beta < c)/(p(beta >= c| x)/p(beta >= c))
 
     Args:
         posterior_samples (np.ndarray) : (N,) array with posterior samples
@@ -313,10 +332,80 @@ def BayesFactorLowerThanHR(
         float : BayesFactor for hazard rate lower then HR
     +==========================================================================+
     """
-    numSamples = posterior_samples.size
-    post_prob = (posterior_samples < np.log(HR)).sum()/numSamples + 0.5/numSamples
+    post_prob = ProbLowerThanHR(
+        posterior_samples,
+        HR
+    )
+    return (prior_cdf*(1-post_prob))/(post_prob*(1-prior_cdf))
+
+def BayesFactorBetweenHR(
+        posterior_samples: np.ndarray, 
+        prior_cdf: float, 
+        HR1: float,
+        HR2: float
+    ) -> float:
+    """
+    +==========================================================================+
+    Determination of BayesFactor for hazard rate lower than HR by counting 
+    samples below cut-off HR from posterior distibution to determine an 
+    empirical CDF and comparing it to the prior CDF.
+        BF01 = p(H0|x)/p(H1|x) = BF0e/BF1e =
+        BF01 = p(c1 < beta < c2| x)/p(c1 < beta < c2)/
+                (p(beta <= c1 or beta >= c2| x)/p(beta <= c1 or beta >= c2))
+
+    Args:
+        posterior_samples (np.ndarray) : (N,) array with posterior samples
+        prior_prob (float) : prior_prob cdf until cutoff
+        HR (float) : hazard rate
+    Returns:
+        float : BayesFactor for hazard rate lower then HR
+    +==========================================================================+
+    """
+    assert (HR1 < HR2)
+    post_prob_lowerL = ProbLowerThanHR(
+        posterior_samples,
+        HR1,
+    )
+    post_prob_lowerH = ProbLowerThanHR(
+        posterior_samples,
+        HR2,
+    )
+    post_prob = post_prob_lowerH - post_prob_lowerL
+    return 1/(prior_cdf*(1-post_prob)/(post_prob*(1-prior_cdf)))
+
+def ProbLowerThanHR(
+        posterior_samples: np.ndarray, 
+        HR: float
+    ) -> float:
+    """
+    +==========================================================================+
+    Determination of BayesFactor for hazard rate lower than HR by counting 
+    samples below cut-off HR from posterior distibution to determine an 
+    empirical CDF and comparing it to the prior CDF.
+
+    Args:
+        posterior_samples (np.ndarray) : (N,) array with posterior samples
+        HR (float) : hazard rate
+    Returns:
+        float : BayesFactor for hazard rate lower then HR
+    +==========================================================================+
+    """
+    hdi = False
+    if hdi:
+        prob = az.hdi(posterior_samples, hdi_prob=1)
+    else:
+        numSamples = posterior_samples.size
+        dp = 0.5/numSamples
+        post_prob = (posterior_samples < np.log(HR)).mean()
+    
     # add numerical error 
-    return post_prob/prior_cdf
+    if post_prob > 1 - dp:
+        post_prob = 1 - dp
+    elif post_prob < dp:
+        post_prob = dp
+    elif np.isnan(post_prob):
+        post_prob = dp
+    return post_prob
         
 
 if __name__ == "__main__":
