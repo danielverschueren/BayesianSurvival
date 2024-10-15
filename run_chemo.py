@@ -17,10 +17,11 @@ if __name__ == "__main__":
 
     now = datetime.now() # current date and time
     date = now.strftime("%Y%m%d") # edit for loading
+    #date = "20241013"
 
     #### load data ####
-    save_dir = f"plots_chemo_{date}/"
-    file = "PBChemoOS_TRRW_start.csv"
+    save_dir = f"results/plots_chemo_{date}/"
+    file = "data/PBChemoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
     dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)
 
@@ -88,9 +89,9 @@ if __name__ == "__main__":
     dataRW = dataDF[dataDF['Test'] == 1]
     outfileStats = pd.DataFrame(index=ts, columns=['subjects', 'censored', 'event', 'person_months'])
     for ti in ts:
-        dataT = dataRW[ti > dataRW['StartTime'] ].astype(float)
-        t = (dataT['EndTime'] + dataT['StartTime']).to_numpy()
-        t_start = dataT['StartTime'].to_numpy()
+        dataT = dataRW[ti > dataRW['StartTime'] ]
+        t = (dataT['EndTime'] + dataT['StartTime']).astype(float).to_numpy()
+        t_start = dataT['StartTime'].astype(float).to_numpy()
         x = pd.Series(index=['subjects', 'censored', 'event', 'person_months'])
         x['subjects'] = len(dataT)
         x['event'] = sum([(dataT['Event'] == 1) & (ti > t)]).sum()
@@ -103,8 +104,8 @@ if __name__ == "__main__":
 
     # mcmc check
     az.plot_trace(PosteriorsT[50][1])
-    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png.csv"), bbox_inches="tight")
-    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png.svg"), bbox_inches="tight")
+    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png"), bbox_inches="tight")
+    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.svg"), bbox_inches="tight")
     plt.close()
 
     # plot priors

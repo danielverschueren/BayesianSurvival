@@ -19,7 +19,7 @@ if __name__ == "__main__":
     date = now.strftime("%Y%m%d") # edit for loading
 
     #### load data ####
-    save_dir = f"plots_pembro_{date}/"
+    save_dir = f"results/plots_pembro_{date}/"
     file = "PBMonoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
     dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)

@@ -330,7 +330,7 @@ def plotKMPosteriorFits(
 
     Ts = [T, Tend]
     color = ['b', 'r']
-    plotKaplanMeier(dataDF, color, ax, kind, Ts)
+    plotKaplanMeier(dataDF, kind, color, ax, Ts)
     
     ax.set_xlabel('time [months]')
     ax.set_ylabel('survival prob')
@@ -404,16 +404,18 @@ def plotPosteriors(
 
 def plotKaplanMeier(
         DFX, 
+        cols,
         colors, 
         ax, 
-        cols=['Test'], 
-        Ts=[-1.]
+        Ts=None
     ):
     """
     +==========================================================================+
 
     +==========================================================================+
     """
+    if Ts is None:
+        Ts = [-1 for col in cols]
     for col, color, T in zip(cols, colors, Ts):
         DF = DFX[DFX[col] == 1] # get cohort
         num_obs, num_col = DF.shape
@@ -446,7 +448,7 @@ def plotKaplanMeier(
             data[abs_time > T, 0] = T - data[abs_time > T,1]
             #data = data[data[:,0] < T]
         else:
-            T = 1e8
+            T = np.max(abs_time)+1
 
         # find the number of subjects with endpoint, display, and sort
         M = len(data[(abs_time < T)])

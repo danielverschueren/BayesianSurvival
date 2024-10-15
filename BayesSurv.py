@@ -95,12 +95,16 @@ def loglp(
 
     # baseline Hazard exp
     # trial
-    pll = pm.math.sum(reference_id*(events*(pm.math.log(nu + eps) - nu*t) # true deads               
-                      - (1-events)*nu*t))  # alive
+    pll = pm.math.sum(
+        reference_id*(events*(pm.math.log(nu + eps) - nu*t) # true deads               
+        - (1-events)*nu*t) # alive
+    )  
 
     # real
-    pll += pm.math.sum(test_id*(events*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
-                      - (1-events)*nu*t*expB)) # alive 
+    pll += pm.math.sum(
+        test_id*(events*(pm.math.log(nu + eps) + beta - (nu*t)*expB) # true deads                 
+        - (1-events)*nu*t*expB)# alive 
+    ) 
     
     return pll
 
@@ -120,8 +124,8 @@ def LifeTimesFull_Exp(
                                 'Test': "test_id", in test set (1) or not (0)
                                 'Reference': "reference_id", in reference set 
                                              (1) or not (0)
-                                'EventOrCensoredAtT: "events_id", wether sample is 
-                                               event (1) or not (0)
+                                'EventOrCensoredAtT: "events_id", wether sample  
+                                               is event (1) or not (0)
                                 't': "t", observed lifetimes 
                               Additional columns are allowed, not used.
         beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
@@ -192,12 +196,16 @@ def loglwb(
 
     # baseline Hazard Weibull
     # trial
-    pll = pm.math.sum(reference_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
-                      - (1-events)*b*t**k))  # events
+    pll = pm.math.sum(
+        reference_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - b*t**k) # true deads                 
+        - (1-events)*b*t**k) # alive
+    )  
 
     # real
-    pll += pm.math.sum(test_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
-                      - (1-events)*expB*b*t**k))  # events
+    pll += pm.math.sum(
+        test_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*b*t**k) # true deads                 
+        - (1-events)*expB*b*t**k) # alive
+    ) 
     
     return pll
 
@@ -218,8 +226,8 @@ def LifeTimesFull_WB(
                                 'Test': "test_id", in test set (1) or not (0)
                                 'Reference': "reference_id", in reference set 
                                              (1) or not (0)
-                                'EventOrCensoredAtT: "events_id", wether sample is 
-                                               event (1) or not (0)
+                                'EventOrCensoredAtT: "events_id", wether sample  
+                                             is event (1) or not (0)
                                 't': "t", observed lifetimes 
                               Additional columns are allowed, not used.
         beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
