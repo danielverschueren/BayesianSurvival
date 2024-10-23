@@ -24,6 +24,7 @@ if __name__ == "__main__":
     file = "data/PBChemoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
     dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)
+    #dataDF['StartTime'][dataDF['Test'] == 1] 
 
     #### model fitting parameters ####
     surv = survWB_splitT
@@ -31,24 +32,27 @@ if __name__ == "__main__":
     num_steps = 1
     PosteriorsT = []
     ts = np.linspace(1,50,num_steps)
+    ts = [50]
     num_steps = len(ts)
-    beta1_prior = (0.5, 0.2)
-    beta2_prior = (0, 0.2)
+    beta1_prior = (0, 0.5)
+    beta2_prior = (0, 0.5)
     b_prior = (-3, 1)
-    k_prior = (0.5, 1.5)
+    k_prior = (0, 3)
     T_cut_prior = (.2)
 
     params = dict()
-    params["beta1"] = 2
-    params["beta2"] = 0
+    params["beta1"] = 1.7
+    params["beta2"] = 0.15
     params["k"] = 1
-    params["b"] = 0.015
+    params["b"] = 0.03
     params["n1"] = 100
     params["n2"] = 300
     x = np.linspace(0,50,100)
     y = survWB_splitT(params, x)
-    plt.plot(x,y)
-    plt.show()
+    _, ax = plt.subplots(1,1)
+    plotKaplanMeier(dataDF, ['Test', 'Reference'], ['r', 'b'], ax)
+    ax.plot(x,y)
+    #plt.show()
 
     #### run model ####
     for T in ts:

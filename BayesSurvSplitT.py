@@ -129,9 +129,9 @@ def LifeTimesSplitT_WB(
 
         # set up priors
         beta1 = pm.Normal('beta1', mu=beta1_params[0], sigma=beta1_params[1])
-        beta2 = beta1 + pm.Normal('beta2', mu=beta2_params[0], sigma=beta2_params[1])
-        T_cut = pm.DiscreteUniform(
-            'T_cut', lower=3, upper=start_time.max()-2,
+        beta2 = pm.Normal('beta2', mu=beta2_params[0], sigma=beta2_params[1])
+        T_cut = 0.5*pm.DiscreteUniform(
+            'T_cut', lower=6, upper=20,
         )
         b = pm.LogNormal('b', mu=b_params[0], sigma=b_params[1])
         k = pm.Uniform('k', lower=k_params[0], upper=k_params[1])
