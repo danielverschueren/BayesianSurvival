@@ -264,58 +264,48 @@ def LifeTimesFull_WB(
     return model
 
 def survExp(
-        baseline: dict, 
+        params: dict, 
         x: np.ndarray, 
-        beta: float
     ) -> np.ndarray:
     """
     +==========================================================================+
-    Function to evaluate exponential survival probability for parameter 'nu' in 
-    baseline and log hazard rate beta.
+    Function to evaluate exponential survival probability for parameter 'nu' and 
+    'beta' in exponential distribution
 
     p(x) = exp(-nu*x*exp(beta))
 
     Args:
-        baseline (dict) : dictionary with parameter 'nu'
+        parmas (dict) : dictionary with parameters
         x (np.ndarray) : (n,) array of survival times to evaluate
-        beta (float) : log hazard rate
     Returns:
         np.ndarray : survival probabilities for x
     +==========================================================================+
     """
-    if 'nu' in baseline.keys():
-        nu = baseline['nu']
-    else:
-        raise Exception('Exponential: param "nu" not in parameter keys...')
-
+    nu = params["nu"]
+    beta = params["beta"]
     return np.exp(-nu*x*np.exp(beta))
 
 def survWB( 
-        baseline: dict, 
+        params: dict, 
         x: np.ndarray, 
-        beta: float
     ) -> np.ndarray:
     """
     +==========================================================================+
-    Function to evaluate Weibull survival probability for parameter 'k' and 'b' 
-    in baseline and log hazard rate beta.
+    Function to evaluate Weibull survival probability for parameters 'k' and 'b' 
+    and 'beta' in Weibull distribution
 
     p(x) = exp(-b*x**k*exp(beta))
 
     Args:
-        baseline (dict) : dictionary with parameter 'k' and 'b'
+        params (dict) : dictionary with parameter 'k' and 'b' and 'beta'
         x (np.ndarray) : (n,) array of survival times to evaluate
-        beta (float) : log hazard rate
     Returns:
         np.ndarray : survival probabilities for x
     +==========================================================================+
     """
-    if 'b' in baseline.keys() and 'k' in baseline.keys():
-        b = baseline['b']
-        k = baseline['k']
-    else:
-        raise Exception('Weibull: param "b" and "k" not in parameter keys...')
-    
+    beta = params["beta"]
+    b = params["b"]
+    k = params["k"]
     return np.exp(-np.exp(beta)*b*x**k)
 
 def BayesFactorLowerThanHR(

@@ -91,7 +91,7 @@ def plotPosteriorBetaBayesFactors(
             linewidth=1
         )
 
-    ax.legend([f"HR>{HR}" for HR in HRs], loc=(1.04, 1))
+    ax.legend([f"HR>{HR}" for HR in HRs], loc=(1.04, 0))
     ax.set_xlabel('time [months]')
     ax.set_ylabel('BF_01')
     ax.autoscale(enable=True, axis='x', tight=True)
@@ -151,7 +151,7 @@ def plotPosteriorBetaBayesFactors_inBetween(
             linewidth=1
         )
 
-    ax.legend([f"{np.exp(-np.log(HR)):.2f}>HR>{HR}" for HR in HRs], loc=(1.04, 1))
+    ax.legend([f"{np.exp(-np.log(HR)):.2f}>HR>{HR}" for HR in HRs], loc=(1.04, 0))
     ax.set_xlabel('time [months]')
     ax.set_ylabel('BF_01')
     ax.autoscale(enable=True, axis='x', tight=True)
@@ -242,9 +242,9 @@ def plotPosteriorBetaCI(
                   linewidth=1
         )
 
-    ax.legend(["CI {}".format(Conf) for Conf in Confs], loc=(1.04,1))
+    ax.legend(["CI {}".format(Conf) for Conf in Confs], loc=(1.04, 0))
     ax.set_xlabel('time [months]')
-    ax.set_ylabel('beta')
+    ax.set_ylabel('HR')
     ax.autoscale(enable=True, axis='x', tight=True)
 
     return ax
@@ -257,7 +257,8 @@ def plotKMPosteriorFits(
         func, 
         ax, 
         plot_ref_intervals=False,
-        prior=False
+        prior=False,
+        text="",
     ):
     """
     +==========================================================================+
@@ -266,10 +267,6 @@ def plotKMPosteriorFits(
     """
     colorT = cm.Purples(np.linspace(0.2, 1, 3))
     colorR = cm.Oranges(np.linspace(0.2, 0.5, 3))
-
-    # check if beta in parameter list
-    if 'beta' not in PosteriorsT.keys():
-        raise Exception('beta param not in posterior keys...')
     
     # set up arrays for plotting
     xT = np.linspace(0,Tend,100)
@@ -336,6 +333,7 @@ def plotKMPosteriorFits(
     ax.set_ylabel('survival prob')
     ax.autoscale(enable=True, axis='x', tight=True)
     ax.text(0.9*Tend,0.9, f"T={T:.2f}")
+    if text: ax.text(-0.1*Tend,1.1, text, fontweight="bold", fontsize=BIGGER_SIZE)
 
     return ax
 
@@ -526,7 +524,7 @@ def plotKaplanMeier(
             ax.plot(x, np.array(y), color=color)
 
     # ax.set_title('KM-curve of data, censored subjects not displayed')
-    ax.legend(['Test', 'Reference'], loc=(1.04, 1))
+    ax.legend(['Test', 'Reference'], loc=(1.04, 0))
     ax.set_xlabel('time of X')
     ax.set_ylabel('Survival')
 
@@ -535,7 +533,8 @@ def plotKaplanMeier(
 def plot_pymc(
         distr, 
         ax=None, 
-        xlims=None
+        xlims=None,
+        log=False,
     ):
     """
     +==========================================================================+
@@ -546,12 +545,16 @@ def plot_pymc(
         _, ax = plt.subplots()
     if xlims is None:
         samples = pm.draw(distr)
-        x = np.linspace(min(samples), max(samples), 1000)
+        if not log: x = np.linspace(min(samples), max(samples), 1000)
+        else: x = np.logspace(min(samples), max(samples), 1000)
     else:
-        x = np.linspace(xlims[0], xlims[1], 1000)
+        if not log: x = np.linspace(xlims[0], xlims[1], 1000)
+        else: x = np.logspace(xlims[0], xlims[1], 1000)
     pdf = np.exp(pm.logp(distr,x)).eval()
 
-    ax.plot(x, pdf/np.max(pdf) )
+    if not log: ax.plot(x, pdf/np.max(pdf)) 
+    else: ax.semilogx(x, pdf/np.max(pdf))
+    
     ax.set_xlabel('value [a.u.]')
     ax.set_ylabel('pdf [a.u.]')
 
@@ -568,22 +571,18 @@ def eval_joint_posterior(
 
     +==========================================================================+
     """
-    baseline = dict()
+    params = dict()
     for key in posterior.keys():
-        if key != 'beta':
-            baseline[key] = posterior[key].values.flatten()
-        else:
-            beta = posterior[key].values.flatten()
-            numModels = len(beta)
-        
-    if ref: beta[:] = 0
+        params[key] = posterior[key].values.flatten()
+        if ref and "beta" in key: params[key][:] = 0
+        numModels = len(params[key])
 
     model_evals = np.zeros((numModels, len(t)))
     for i in range(numModels):
         baseline_i = dict()
-        for key in baseline.keys():
-            baseline_i[key] = baseline[key][i]
-        model_evals[i] = func(baseline_i, t, beta[i])
+        for key in params.keys():
+            baseline_i[key] = params[key][i]
+        model_evals[i] = func(baseline_i, t)
 
     return model_evals   
     

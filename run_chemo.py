@@ -5,6 +5,8 @@ import numpy as np
 import pymc as pm
 import matplotlib.pyplot as plt
 import pickle
+import os
+from string import ascii_uppercase as auc
 from pathlib import Path
 from datetime import datetime
 
@@ -17,10 +19,13 @@ if __name__ == "__main__":
 
     now = datetime.now() # current date and time
     date = now.strftime("%Y%m%d") # edit for loading
-    #date = "20241013"
 
     #### load data ####
     save_dir = f"results/plots_chemo_{date}/"
+    try:
+        os.mkdir(save_dir)
+    except:
+        pass
     file = "data/PBChemoOS_TRRW_start.csv"
     dataDF = pd.read_csv(file)
     dataDF.rename(columns={'RW' : 'Test', 'TR' : 'Reference'}, inplace=True)
@@ -60,8 +65,8 @@ if __name__ == "__main__":
                 # posterior
                 result = pm.sample(
                     draws=ndraw, 
-                    tune=4000, 
-                    target_accept=0.999, 
+                    tune=6000, 
+                    target_accept=0.9, 
                     random_seed=SEED,
                     return_inferencedata=True
                 )
@@ -102,6 +107,22 @@ if __name__ == "__main__":
         outfileStats.loc[ti] = x
     outfileStats.to_csv(Path(save_dir, f"chemo_stats_{date}.csv"))
 
+    # mcmc stats
+    mcmc_stats_ess = pd.DataFrame(
+        index=ts, 
+        columns=[f'ess_{param}' for param in ["b", "k", "beta"]])
+    for i in range(len(PosteriorsT)):
+        for j, param in enumerate(["b", "k", "beta"]):
+            mcmc_stats_ess.iloc[i,j] = PosteriorsT[i][3][0][param].values
+    mcmc_stats_rhat = pd.DataFrame(
+        index=ts, 
+        columns=[f'rhat_{param}' for param in ["b", "k", "beta"]])
+    for i in range(len(PosteriorsT)):
+        for j, param in enumerate(["b", "k", "beta"]):
+            mcmc_stats_rhat.iloc[i,j] = PosteriorsT[i][3][1][param].values
+    mcmc_stats = pd.concat([mcmc_stats_ess, mcmc_stats_rhat], axis=1)
+    mcmc_stats.to_csv(Path(save_dir,f"chemo_mcmc_stats_{date}.csv"))
+
     # mcmc check
     az.plot_trace(PosteriorsT[50][1])
     plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png"), bbox_inches="tight")
@@ -118,9 +139,9 @@ if __name__ == "__main__":
     )
     with model:
         _, axa = plt.subplots(1, 3, figsize=(17,5))
-        plot_pymc(pm.Normal('beta_', mu=beta_prior[0], sigma=beta_prior[1]), ax=axa[0], xlims=[-1.5, 1.5])
-        plot_pymc(pm.LogNormal('b_', mu=b_prior[0], sigma=b_prior[1]), ax=axa[1], xlims=[0,0.3])
-        plot_pymc(pm.Uniform('k_', lower=k_prior[0], upper=k_prior[1]), ax=axa[2], xlims=[0.5, 1.5])
+        plot_pymc(pm.Normal('beta_', mu=beta_prior[0], sigma=beta_prior[1]), ax=axa[0], xlims=[-5, 5])
+        plot_pymc(pm.LogNormal('b_', mu=b_prior[0], sigma=b_prior[1]), ax=axa[1], xlims=[-4,1], log=True)
+        plot_pymc(pm.Uniform('k_', lower=k_prior[0], upper=k_prior[1]), ax=axa[2], xlims=[-0.1, 3.1])
         plt.savefig(Path(save_dir, f"chemo_priors_{date}.png"), bbox_inches="tight")
         plt.savefig(Path(save_dir, f"chemo_priors_{date}.svg"), bbox_inches="tight")
         plt.close()
@@ -149,7 +170,7 @@ if __name__ == "__main__":
     plt.close()
 
     # plot KMs and median fits
-    for j in show_js:
+    for i,j in enumerate(show_js):
         _, ax2 = plt.subplots(1, 1, figsize=(11,3))
         ax2 = plotKMPosteriorFits(
             PosteriorsT[j][0], 
@@ -159,6 +180,7 @@ if __name__ == "__main__":
             surv, 
             ax2,
             plot_ref_intervals=False,
+            text=f"{auc[i]}."
         )
         plt.savefig(Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.png"), bbox_inches="tight")
         plt.savefig(Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.svg"), bbox_inches="tight")
@@ -191,7 +213,6 @@ if __name__ == "__main__":
     plt.savefig(Path(save_dir, f"chemo_bfs_inbetween_{date}.png"), bbox_inches="tight")
     plt.savefig(Path(save_dir, f"chemo_bfs_inbetween_{date}.svg"), bbox_inches="tight")
     plt.close()
-
 
     a, b, c = betaBayesFactors(PosteriorsT, beta_prior, HRs,)
     a.to_csv(Path(save_dir, f"chemo_bfs_{date}.csv"))
