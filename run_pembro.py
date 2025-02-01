@@ -19,6 +19,7 @@ if __name__ == "__main__":
 
     now = datetime.now() # current date and time
     date = now.strftime("%Y%m%d") # edit for loading
+    date = "20241016"
 
     #### load data ####
     save_dir = f"results/plots_pembro_{date}/"
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     beta_prior = (0, 0.5)
     b_prior = (-3, 1)
     k_prior = (0.5, 1.5)
-    load = False
+    load = True
 
     if load:
         with open(Path(save_dir, f"PosteriorWeibullpembro_{date}.pk"), 'rb') as f:
@@ -147,6 +148,7 @@ if __name__ == "__main__":
         plt.close()
 
     # plot prior check
+    xticks = [0, 6, 12, 18, 24, 30]
     _, ax0 = plt.subplots(1, 1, figsize=(11,3))
     ax0 = plotKMPosteriorFits(
         PosteriorsT[-1][0], 
@@ -158,13 +160,14 @@ if __name__ == "__main__":
         plot_ref_intervals=True,
         prior=True
     )
+    plt.xticks(xticks, xticks)
     plt.savefig(Path(save_dir, f"pembro_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.png"), bbox_inches="tight")
     plt.savefig(Path(save_dir, f"pembro_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.svg"), bbox_inches="tight")
     plt.close()
 
     # plot Exp Posteriors
     _, ax1 = plt.subplots(1, 3, figsize=(17,5))
-    ax1 = plotPosteriors(PosteriorsT, ax1, show_js, ['b','k'], xlims_baseline=[[0, 0.1], [0.5,1.5]])
+    ax1 = plotPosteriors(PosteriorsT, ax1, show_js, ['beta','b','k'], xlims_baseline=[[-1, 1], [0, 0.1], [0.5,1.5]])
     plt.savefig(Path(save_dir, f"pembro_posteriors_{date}.png"), bbox_inches="tight")
     plt.savefig(Path(save_dir, f"pembro_posteriors_{date}.svg"), bbox_inches="tight")
     plt.close()
@@ -182,6 +185,7 @@ if __name__ == "__main__":
             plot_ref_intervals=False,
             text=f"{auc[i]}."
         )
+        plt.xticks(xticks, xticks)
         plt.savefig(Path(save_dir, f"pembro_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.png"), bbox_inches="tight")
         plt.savefig(Path(save_dir, f"pembro_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.svg"), bbox_inches="tight")
         plt.close()
@@ -191,6 +195,7 @@ if __name__ == "__main__":
     _, ax3 = plt.subplots(1,1, figsize=(10,4))
     ax3 = plotPosteriorBetaCI(PosteriorsT, HRs, ax3)
     ax3.set_ylim([0, 3])
+    plt.xticks(xticks, xticks)
     plt.savefig(Path(save_dir, f"pembro_cis_{date}.png"), bbox_inches="tight")
     plt.savefig(Path(save_dir, f"pembro_cis_{date}.svg"), bbox_inches="tight")
     plt.close()
@@ -201,6 +206,8 @@ if __name__ == "__main__":
     _, ax4 = plt.subplots(1,1, figsize=(10,4))
     ax4 = plotPosteriorBetaBayesFactors(PosteriorsT, beta_prior, HRLs, HRHs, ax4)
     ax4.set_ylim([1/100, 100])
+    plt.xticks(xticks, xticks)
+    plt.yticks([],[])
     plt.savefig(Path(save_dir, f"pembro_bfs_{date}.png"), bbox_inches="tight")
     plt.savefig(Path(save_dir, f"pembro_bfs_{date}.svg"), bbox_inches="tight")
     plt.close()
@@ -208,6 +215,7 @@ if __name__ == "__main__":
     # plot BayesFactor inBetween
     HRs = [1.1, 1.2, 1.5]
     _, ax5 = plt.subplots(1,1, figsize=(10,4))
+    plt.xticks(xticks, xticks)
     ax5 = plotPosteriorBetaBayesFactors_inBetween(PosteriorsT, beta_prior, HRs, ax5)
     ax5.set_ylim([1/100, 100])
     plt.savefig(Path(save_dir, f"pembro_bfs_inbetween_{date}.png"), bbox_inches="tight")

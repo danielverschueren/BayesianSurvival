@@ -39,7 +39,7 @@ def plotPosteriorBetaBayesFactors(
     +==========================================================================+
     """
     # plot the probability that HR > X over time, prior is norm
-    ts = np.array([PosteriorsT[i][0] for i in range(len(PosteriorsT))])
+    ts = np.array([0.]+[PosteriorsT[i][0] for i in range(len(PosteriorsT))])
     beta_prior = norm(beta_params[0], beta_params[1])
     color = cm.BrBG(np.linspace(0, 1, len(HRLs+HRHs)))
     num_steps = len(PosteriorsT)
@@ -51,7 +51,7 @@ def plotPosteriorBetaBayesFactors(
     for c, HR in zip(color[:len(HRLs)], HRLs):
         #prior_prob = beta_prior.cdf(np.log(HR)) - beta_prior.cdf(-np.log(HR)) 
         prior_prob = beta_prior.cdf(np.log(HR))
-        bf = np.array([1/BayesFactorLowerThanHR(
+        bf = np.array([1.]+[1/BayesFactorLowerThanHR(
             PosteriorsT[i][1].beta.values.flatten(), 
             prior_prob, 
             HR,
@@ -61,15 +61,15 @@ def plotPosteriorBetaBayesFactors(
     for c, HR in zip(color[len(HRLs):], HRHs):
         #prior_prob = beta_prior.cdf(np.log(HR)) - beta_prior.cdf(-np.log(HR)) 
         prior_prob = beta_prior.cdf(np.log(HR))
-        bf = np.array([BayesFactorLowerThanHR(
+        bf = np.array([1.]+[BayesFactorLowerThanHR(
             PosteriorsT[i][1].beta.values.flatten(), 
             prior_prob, 
             HR,
         ) for i in range(num_steps)])
         ax.semilogy(ts, bf, color=c)
 
-    style = ['-.', '--', '-']
-    for i, BF in enumerate([3,10,30]):
+    style = ['-.', '--', '-', ':', '-.']
+    for i, BF in enumerate([3,10,30,100,300]):
         ax.hlines(
             BF, 
             ts[0], 
@@ -80,7 +80,7 @@ def plotPosteriorBetaBayesFactors(
             linewidth=1
         )
 
-    for i, BF in enumerate([1/3,1/10,1/30]):
+    for i, BF in enumerate([1/3,1/10,1/30,1/100,1/300]):
         ax.hlines(
             BF, 
             ts[0], 
@@ -205,7 +205,8 @@ def betaBayesFactors(
 def plotPosteriorBetaCI(
         PosteriorsT, 
         HRs, 
-        ax
+        ax,
+        param_name = 'beta'
     ):
     """
     +==========================================================================+
@@ -222,10 +223,10 @@ def plotPosteriorBetaCI(
 
     for c, CF in zip(colorBeta, CFs):
         y1 = np.array([np.exp(
-            PosteriorsT[i][1].quantile([CF[0]]).beta.values
+            PosteriorsT[i][1].quantile([CF[0]])[param_name].values
         ) for i in range(num_steps)]).T[0]
         y2 = np.array([np.exp(
-            PosteriorsT[i][1].quantile([CF[1]]).beta.values
+            PosteriorsT[i][1].quantile([CF[1]])[param_name].values
         ) for i in range(num_steps)]).T[0]
         ax.plot(ts, y1, color = c,)
         ax.plot(ts, y2, color = c, label='_nolegend_',)
@@ -341,9 +342,8 @@ def plotPosteriors(
         PosteriorsT,
         ax, 
         show_js, 
-        key_priors, 
-        xlims_baseline = [[0, 0.1], [0.5, 1.5]],
-        xlims_beta = [-1, 1]
+        key_params, 
+        xlims_baseline = [[-1, 1], [0, 0.1], [0.5, 1.5]],
     ):
     """
     +==========================================================================+
@@ -351,13 +351,12 @@ def plotPosteriors(
     +==========================================================================+
     """
     # plot resulting posterior
-    num_steps = len(PosteriorsT)
     num_shows = len(show_js)
     colorBeta = cm.BuGn(np.linspace(0.2, 1, num_shows))
     colorBaselines = cm.YlOrRd(np.linspace(0.2, 1, num_shows))
 
     # plot prior
-    for j, key in enumerate(['beta'] + key_priors):
+    for j, key in enumerate(key_params):
         grid, pdf = az.kde(PosteriorsT[0][2][key].values.flatten())
         ax[j].plot(grid, pdf/np.max(pdf),color='lightgrey')
     xt = [0]
@@ -367,33 +366,23 @@ def plotPosteriors(
 
         cBeta = colorBeta[i]
         cBaseline = colorBaselines[i]
+        colors = [cBaseline for _ in range(len(key_params))]
+        colors[0] = cBeta
 
-        # plot beta
-        lam = PosteriorsT[iter][1].quantile([0.5]).beta.values
-        if lam < 0:
-            lam = 0.001
-        grid, pdf = az.kde(PosteriorsT[iter][1].beta.values.flatten())
-        ax[0].plot(grid, pdf/np.max(pdf), color=cBeta)
-        ax[0].set_xlabel('value [a.u.]')
-        ax[0].set_ylabel('pdf [a.u.]')
-        ax[0].set_xlim(xlims_beta)
-        ax[0].legend(['T={:.2f}'.format(PosteriorsT[iter][0])], loc=(1.06, 1))
-
-        # plot nu
-        for j, key in enumerate(key_priors):
-            grid, pdf = az.kde(PosteriorsT[i][1][key].values.flatten())
+        # plot vars
+        for j, key in enumerate(key_params):
+            grid, pdf = az.kde(PosteriorsT[iter][1][key].values.flatten())
             xt.append(grid[np.argmax(pdf)])
-            ax[j+1].plot(grid, pdf/np.max(pdf), color=cBaseline)
-            ax[j+1].set_xlabel('value [a.u.]')
-            ax[j+1].set_ylabel('pdf [a.u.]')
-            ax[j+1].set_xlim(xlims_baseline[j])
+            ax[j].plot(grid, pdf/np.max(pdf), color=colors[j])
+            ax[j].set_xlabel('value [a.u.]')
+            ax[j].set_ylabel('pdf [a.u.]')
+            ax[j].set_xlim(xlims_baseline[j])
 
         # create legend
         leg_list.append('t={:.2f}'.format(PosteriorsT[iter][0]))
 
-    ax[0].set_title('beta')
-    for j, key in enumerate(key_priors):
-        ax[1+j].set_title(key)
+    for j, key in enumerate(key_params):
+        ax[j].set_title(key)
     for ax_i in ax:
         ax_i.legend(leg_list, loc=(1.04, 1))
     ax[0].vlines(0, 0, 1, color='k')
@@ -401,15 +390,26 @@ def plotPosteriors(
     return ax
 
 def plotKaplanMeier(
-        DFX, 
-        cols,
-        colors, 
-        ax, 
-        Ts=None
+        DFX: pd.DataFrame, 
+        cols: list,
+        colors: list, 
+        ax: plt.axis, 
+        Ts: list | None = None,
     ):
     """
     +==========================================================================+
+    Plot emperical Kaplan-Meier survival curve
 
+
+    Args:
+        DFX (pd.DataFrame) : data frame with data
+        cols (list) : list of column names to plot
+        colors (list) : colors to use. one per col.
+        ax (plt.axis) : axis object to plot onto
+        Ts list() : list of end times per column
+
+    Returns:
+        Updated plt.axis object with Kaplan-Meier curve.
     +==========================================================================+
     """
     if Ts is None:

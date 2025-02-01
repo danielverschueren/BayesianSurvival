@@ -54,7 +54,7 @@ def resetDataToT(
     print('T = {}'.format(T))
     print("+=============================================================+")
     print('Current subjects: \t\t\t{}'.format(len(t[real == 1])))
-    print('Event/Censored RW at T: \t\t{}'.format(
+    print('Event RW prior to T: \t\t\t{}'.format(
         np.sum(EventOrCensoredAtT[real == 1])
     ))
 

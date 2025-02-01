@@ -44,7 +44,7 @@ def loglwb_splitT(
     expB2 = pm.math.exp(beta2)
 
     # determine group
-    T_before = (t_data[:,1] < T_cut).astype(int)
+    T_before = (t_data[:,1] < T_cut).astype(int) 
     T_after = 1 - T_before
 
     # get time
@@ -130,9 +130,7 @@ def LifeTimesSplitT_WB(
         # set up priors
         beta1 = pm.Normal('beta1', mu=beta1_params[0], sigma=beta1_params[1])
         beta2 = pm.Normal('beta2', mu=beta2_params[0], sigma=beta2_params[1])
-        T_cut = 0.5*pm.DiscreteUniform(
-            'T_cut', lower=6, upper=20,
-        )
+        T_cut = 0.5*pm.DiscreteUniform('T_cut', lower=T_cut_param, upper=T_cut_param,)
         b = pm.LogNormal('b', mu=b_params[0], sigma=b_params[1])
         k = pm.Uniform('k', lower=k_params[0], upper=k_params[1])
 
