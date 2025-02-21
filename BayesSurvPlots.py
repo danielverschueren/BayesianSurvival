@@ -352,8 +352,12 @@ def plotPosteriors(
     """
     # plot resulting posterior
     num_shows = len(show_js)
-    colorBeta = cm.BuGn(np.linspace(0.2, 1, num_shows))
-    colorBaselines = cm.YlOrRd(np.linspace(0.2, 1, num_shows))
+    if num_shows > 1:
+        colorBeta = cm.BuGn(np.linspace(0.2, 1, num_shows))
+        colorBaselines = cm.YlOrRd(np.linspace(0.2, 1, num_shows))
+    else:
+        colorBeta = cm.BuGn(np.array([1.]))
+        colorBaselines = cm.YlOrRd(np.array([1.]))
 
     # plot prior
     for j, key in enumerate(key_params):

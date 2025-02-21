@@ -44,7 +44,9 @@ if __name__ == "__main__":
     load = True
 
     if load:
-        with open(Path(save_dir, f"PosteriorWeibullchemo_{date}.pk"), 'rb') as f:
+        with open(
+            Path(save_dir, f"PosteriorWeibullchemo_{date}.pk"), 'rb'
+        ) as f:
             PosteriorsT = pickle.load(f)
     else:
         #### run model ####
@@ -83,7 +85,9 @@ if __name__ == "__main__":
                                 (ess, rhat)])
 
         # save runs
-        with open(Path(save_dir, f"PosteriorWeibullchemo_{date}.pk"), 'wb') as handle:
+        with open(
+            Path(save_dir, f"PosteriorWeibullchemo_{date}.pk"), 'wb'
+        ) as handle:
             pickle.dump(PosteriorsT, handle)
 
     az.plot_trace(PosteriorsT[0][1])
@@ -94,7 +98,10 @@ if __name__ == "__main__":
 
     # simple stats
     dataRW = dataDF[dataDF['Test'] == 1]
-    outfileStats = pd.DataFrame(index=ts, columns=['subjects', 'censored', 'event', 'person_months'])
+    outfileStats = pd.DataFrame(
+        index=ts, 
+        columns=['subjects', 'censored', 'event', 'person_months']
+    )
     for ti in ts:
         dataT = dataRW[ti > dataRW['StartTime'] ]
         t = (dataT['EndTime'] + dataT['StartTime']).astype(float).to_numpy()
@@ -127,8 +134,14 @@ if __name__ == "__main__":
 
     # mcmc check
     az.plot_trace(PosteriorsT[50][1])
-    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png"), bbox_inches="tight")
-    plt.savefig(Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.svg"), bbox_inches="tight")
+    plt.savefig(
+        Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.png"), 
+        bbox_inches="tight"
+    )
+    plt.savefig(
+        Path(save_dir, f"chemo_traceplot_t{PosteriorsT[50][0]}_{date}.svg"), 
+        bbox_inches="tight"
+    )
     plt.close()
 
     # plot priors
@@ -141,11 +154,30 @@ if __name__ == "__main__":
     )
     with model:
         _, axa = plt.subplots(1, 3, figsize=(17,5))
-        plot_pymc(pm.Normal('beta_', mu=beta_prior[0], sigma=beta_prior[1]), ax=axa[0], xlims=[-5, 5])
-        plot_pymc(pm.LogNormal('b_', mu=b_prior[0], sigma=b_prior[1]), ax=axa[1], xlims=[-4,1], log=True)
-        plot_pymc(pm.Uniform('k_', lower=k_prior[0], upper=k_prior[1]), ax=axa[2], xlims=[-0.1, 3.1])
-        plt.savefig(Path(save_dir, f"chemo_priors_{date}.png"), bbox_inches="tight")
-        plt.savefig(Path(save_dir, f"chemo_priors_{date}.svg"), bbox_inches="tight")
+        plot_pymc(
+            pm.Normal('beta_', mu=beta_prior[0], sigma=beta_prior[1]), 
+            ax=axa[0], 
+            xlims=[-5, 5]
+        )
+        plot_pymc(
+            pm.LogNormal('b_', mu=b_prior[0], sigma=b_prior[1]), 
+            ax=axa[1], 
+            xlims=[-4,1], 
+            log=True
+        )
+        plot_pymc(
+            pm.Uniform('k_', lower=k_prior[0], upper=k_prior[1]), 
+            ax=axa[2], 
+            xlims=[-0.1, 3.1]
+        )
+        plt.savefig(
+            Path(save_dir, f"chemo_priors_{date}.png"), 
+            bbox_inches="tight"
+        )
+        plt.savefig(
+            Path(save_dir, f"chemo_priors_{date}.svg"), 
+            bbox_inches="tight"
+        )
         plt.close()
 
     # plot prior check
@@ -162,15 +194,33 @@ if __name__ == "__main__":
         prior=True
     )
     plt.xticks(xticks, xticks)
-    plt.savefig(Path(save_dir, f"chemo_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.png"), bbox_inches="tight")
-    plt.savefig(Path(save_dir, f"chemo_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.svg"), bbox_inches="tight")
+    plt.savefig(
+        Path(save_dir, f"chemo_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.png"), 
+        bbox_inches="tight"
+    )
+    plt.savefig(
+        Path(save_dir, f"chemo_kms_priorcheck_t{PosteriorsT[-1][0]}_{date}.svg"), 
+        bbox_inches="tight"
+    )
     plt.close()
 
     # plot Exp Posteriors
     _, ax1 = plt.subplots(1, 3, figsize=(17,5))
-    ax1 = plotPosteriors(PosteriorsT, ax1, show_js, ['beta','b','k'], xlims_baseline=[[-1, 1], [0, 0.1], [0.5,1.5]])
-    plt.savefig(Path(save_dir, f"chemo_posteriors_{date}.png"), bbox_inches="tight")
-    plt.savefig(Path(save_dir, f"chemo_posteriors_{date}.svg"), bbox_inches="tight")
+    ax1 = plotPosteriors(
+        PosteriorsT, 
+        ax1, 
+        show_js, 
+        ['beta','b','k'], 
+        xlims_baseline=[[-1, 1], [0, 0.1], [0.5,1.5]]
+    )
+    plt.savefig(
+        Path(save_dir, f"chemo_posteriors_{date}.png"), 
+        bbox_inches="tight"
+    )
+    plt.savefig(
+        Path(save_dir, f"chemo_posteriors_{date}.svg"), 
+        bbox_inches="tight"
+    )
     plt.close()
 
     # plot KMs and median fits
@@ -187,8 +237,14 @@ if __name__ == "__main__":
             text=f"{auc[i]}."
         )
         plt.xticks(xticks, xticks)
-        plt.savefig(Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.png"), bbox_inches="tight")
-        plt.savefig(Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.svg"), bbox_inches="tight")
+        plt.savefig(
+            Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.png"), 
+            bbox_inches="tight"
+        )
+        plt.savefig(
+            Path(save_dir, f"chemo_kms_posteriorcheck_t{PosteriorsT[j][0]}_{date}.svg"), 
+            bbox_inches="tight"
+        )
         plt.close()
 
     # plot CIs
@@ -206,7 +262,9 @@ if __name__ == "__main__":
     HRHs = [1.00, 1.20, 1.50, 2.00]
     yticks = [1/100, 1/30, 1/10, 1/3, 1, 3, 10, 30, 100, 300, 1000]
     _, ax4 = plt.subplots(1,1, figsize=(10,4))
-    ax4 = plotPosteriorBetaBayesFactors(PosteriorsT, beta_prior, HRLs, HRHs, ax4)
+    ax4 = plotPosteriorBetaBayesFactors(
+        PosteriorsT, beta_prior, HRLs, HRHs, ax4
+    )
     ax4.set_ylim([1/100, 10000])
     plt.xticks(xticks, xticks)
     plt.yticks([],[])
@@ -218,11 +276,19 @@ if __name__ == "__main__":
     # plot BayesFactor inBetween
     HRs = [1.1, 1.2, 1.5]
     _, ax5 = plt.subplots(1,1, figsize=(10,4))
-    ax5 = plotPosteriorBetaBayesFactors_inBetween(PosteriorsT, beta_prior, HRs, ax5)
+    ax5 = plotPosteriorBetaBayesFactors_inBetween(
+        PosteriorsT, beta_prior, HRs, ax5
+    )
     ax5.set_ylim([1/100, 100])
     plt.xticks(xticks, xticks)
-    plt.savefig(Path(save_dir, f"chemo_bfs_inbetween_{date}.png"), bbox_inches="tight")
-    plt.savefig(Path(save_dir, f"chemo_bfs_inbetween_{date}.svg"), bbox_inches="tight")
+    plt.savefig(
+        Path(save_dir, f"chemo_bfs_inbetween_{date}.png"), 
+        bbox_inches="tight"
+    )
+    plt.savefig(
+        Path(save_dir, f"chemo_bfs_inbetween_{date}.svg"), 
+        bbox_inches="tight"
+    )
     plt.close()
 
     a, b, c = betaBayesFactors(PosteriorsT, beta_prior, HRs,)

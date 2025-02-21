@@ -263,6 +263,56 @@ def LifeTimesFull_WB(
 
     return model
 
+def loglgomp(
+        t: pm.CallableTensor, 
+        beta: pm.CallableTensor, 
+        b: pm.CallableTensor, 
+        eta: pm.CallableTensor,
+        test_id: pm.CallableTensor,
+        reference_id: pm.CallableTensor,
+        events: pm.CallableTensor,
+    ) -> pm.CallableTensor:
+    """
+    +==========================================================================+
+    Survival Log likelihood for an Gompertz distribution of lifetimes between
+    two populations identified with test_id or reference_id and constant hazard 
+    beta difference between the populations
+
+    Args:
+        t (pm.CallableTensor) : (N,) vector of drop/censoring times
+        beta (pm.CallableTensor) : (1,) hazard rate
+        b (pm.CallableTensor) : (1,) Gompertz b param (distribution param)
+        eta (pm.CallableTensor) : (1,) Gompertz eta param (distribution param)
+        test_id (pm.CallableTensor) : (N,) subject in test set (1) or not (0)
+        reference_id (pm.CallableTensor) : (N,) subject in reference set (1)
+                                            or not (0)
+        events (pm.CallableTensor) : (N,) subject event (1) or not (0)
+    
+    Returns:
+        pm.CallableTensor Survival Log Likelihood of data given parameters.
+    +==========================================================================+
+    """
+    eps = 1e-10
+    pll = 0
+
+    # baseline
+    expB = pm.math.exp(beta)
+
+    # baseline Hazard Weibull
+    # trial
+    pll = pm.math.sum(
+        reference_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - eta*(pm.exp(b*t)-1)) # true deads                 
+        - (1-events)*eta*(pm.exp(b*t)-1)) # alive
+    )  
+
+    # real
+    pll += pm.math.sum(
+        test_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*eta*(pm.exp(b*t)-1)) # true deads                 
+        - (1-events)*expB*eta*(pm.exp(b*t)-1)) # alive
+    ) 
+    
+    return pll
+
 def survExp(
         params: dict, 
         x: np.ndarray, 
@@ -307,6 +357,29 @@ def survWB(
     b = params["b"]
     k = params["k"]
     return np.exp(-np.exp(beta)*b*x**k)
+
+def survGomp( 
+        params: dict, 
+        x: np.ndarray, 
+    ) -> np.ndarray:
+    """
+    +==========================================================================+
+    Function to evaluate Gompertz survival probability for parameters 'eta' and 
+    'b' and 'beta' in Gompertz distribution
+
+    p(x) = exp(-eta*(exp(b*x)-1)*exp(beta))
+
+    Args:
+        params (dict) : dictionary with parameter 'eta' and 'b' and 'beta'
+        x (np.ndarray) : (n,) array of survival times to evaluate
+    Returns:
+        np.ndarray : survival probabilities for x
+    +==========================================================================+
+    """
+    beta = params["beta"]
+    b = params["b"]
+    eta = params["eta"]
+    return np.exp(-np.exp(beta)*eta*(np.exp(b*x)-1))
 
 def BayesFactorLowerThanHR(
         posterior_samples: np.ndarray, 
