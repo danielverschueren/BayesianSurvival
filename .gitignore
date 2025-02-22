@@ -9,3 +9,5 @@ __pycache__
 .DS_store
 *.png
 BayesSurvConvertDataFile.py
+run_pembro_gmprtz.py
+run_chemo_gmprtz.py
