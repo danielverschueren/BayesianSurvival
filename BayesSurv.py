@@ -301,17 +301,75 @@ def loglgomp(
     # baseline Hazard Weibull
     # trial
     pll = pm.math.sum(
-        reference_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) - eta*(pm.exp(b*t)-1)) # true deads                 
-        - (1-events)*eta*(pm.exp(b*t)-1)) # alive
+        reference_id*(
+            events*(pm.math.log(b*eta + eps) + b*t - eta*(pm.math.exp(b*t) - 1)) # event                 
+            - (1-events)*eta*(pm.math.exp(b*t)-1) # cens
+        ) 
     )  
 
     # real
     pll += pm.math.sum(
-        test_id*(events*(pm.math.log(b*k + eps) + (k-1)*pm.math.log(t) + beta - expB*eta*(pm.exp(b*t)-1)) # true deads                 
-        - (1-events)*expB*eta*(pm.exp(b*t)-1)) # alive
+        test_id*(
+            events*(pm.math.log(b*eta + eps) + b*t + beta - expB*eta*(pm.math.exp(b*t)-1)) # event                
+            - (1-events)*expB*eta*(pm.exp(b*t)-1) # alive
+        )
     ) 
     
     return pll
+
+def LifeTimesFull_Gomp(
+        data: pd.DataFrame, 
+        beta_params: tuple[float, float]=(0.,2.), 
+        b_params: tuple[float, float]=(-2.,3.), 
+        eta_params: tuple[float, float]=(0.9,1.1)
+    ) -> pm.Model:
+    """
+    +==========================================================================+
+    Function to instantiate a pymc model consturcted using a Gompertz
+    lifetimes distribution, constant hazard rate, observed lifetimes t, data_id 
+    to determine where subject's group.
+
+    Args:
+        data (pd.DataFrame) : (N,m) data array with the following columns:
+                                'Test': "test_id", in test set (1) or not (0)
+                                'Reference': "reference_id", in reference set 
+                                             (1) or not (0)
+                                'EventOrCensoredAtT: "events_id", wether sample  
+                                             is event (1) or not (0)
+                                't': "t", observed lifetimes 
+                              Additional columns are allowed, not used.
+        beta_params tuple(float, float): beta prior parameters: Norm(mu, sigma)
+        b_params tuple(float, float): b prior parameters: LogNorm(mu, sigma)
+        eta_params tuple(float, float): k prior parameters: Unif(low, high)
+    Returns:
+        pm.Model pymc model to sample from     
+    +==========================================================================+
+    """
+    with pm.Model() as model:
+
+        # protected names: 'EventOrCensoredAtT', 'Test', 'Reference', 't'
+        assert ("EventOrCensoredAtT" in data.columns), "'EventOrCensoredAtT' not in columns"
+        assert ("Test" in data.columns),         "'Test' not in columns"
+        assert ("Reference" in data.columns),    "'Reference' not in columns"
+        assert ("t" in data.columns),            "'t' not in columns"
+
+        test_id = pm.Data("test_id", data["Test"])
+        reference_id = pm.Data("reference_id", data["Reference"])
+        events = pm.Data("events_id", data["EventOrCensoredAtT"])
+        # parse data
+        t = pm.Data("t", data["t"], dims="obs_id")
+
+        # set up priors
+        beta = pm.Normal('beta', mu=beta_params[0], sigma=beta_params[1]) #23
+        b = pm.LogNormal('b', mu=b_params[0], sigma=b_params[1])
+        eta = pm.Uniform('eta', lower=eta_params[0], upper=eta_params[1])
+
+        # set up custom pll
+        pm.DensityDist("likeli", beta, b, eta, 
+                       test_id, reference_id, events, 
+                       logp=loglwb, observed=t, dims='obs_id')
+
+    return model
 
 def survExp(
         params: dict, 
