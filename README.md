@@ -4,9 +4,9 @@ A basic package for modelling lifetimes via parameterised Bayesian survival anal
 The modelling aims to assess a difference in lifetime between two datasets using proportional hazards and random censoring and provides a Bayes Factor hypothesis testing framework for assessing deviations from a null-model.
 
 The survival likelihood function it evaluates is
-\begin{equation}
+$$
     p_{ll}(D|{\bf m}) = \prod_i \left(h_0(t_i|{\bf m})S(t_i|{\bf m})\right)^{\delta_i(1-x_i)}S(t_i|{\bf m})^{(1-\delta_i)(1-x_i)} \cdot \left(e^\beta h_0(t_i|{\bf m})S(t_i|{\bf m})^{e^\beta}\right)^{\delta_ix_i}\left(S(t_i|{\bf m})^{e^\beta}\right)^{(1-\delta_i)x_i}
-\end{equation}
+$$
 
 With $D$ indicating the observed data (observed lifetime $t$, dataset indicator $x$ and event/censoring indicator $\delta$), $h_0$ the baseline hazard, ${\bf m}$ the baseline hazard model parameters, $S$ the surival function, $\beta$ the porportional hazard difference between the data: the parameter of interest.
 
