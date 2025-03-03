@@ -17,7 +17,7 @@ SEED = 42
 if __name__ == "__main__":
 
     #### load data ####
-    file = "synthData_beta0.5_lamsurv0.05.csv" 
+    file = "synthData_beta0.5_nusurv0.05.csv" 
     dataDF = pd.read_csv(file)
 
     #### model fitting parameters ####

@@ -298,7 +298,7 @@ def loglgomp(
     # baseline
     expB = pm.math.exp(beta)
 
-    # baseline Hazard Weibull
+    # baseline Hazard Gompertz
     # trial
     pll = pm.math.sum(
         reference_id*(
